@@ -16,10 +16,14 @@ import './index.css'
 function App() {
   const {
     setIsBrowseTableOpen,
+    isBrowseTableOpen,
     setIsCorpusBuilderOpen,
+    isCorpusBuilderOpen,
     setIsVisualsOpen,
+    isVisualsOpen,
     setMapVisualMode,
     mapVisualMode,
+    activeWindow,
     setActiveWindow
   } = useCorpus();
   const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
@@ -55,8 +59,13 @@ function App() {
       />
       <VisualsLauncherChip
         onVisualsDefaultClick={() => {
-          setIsVisualsOpen(true);
-          setActiveWindow('visuals');
+          if (isVisualsOpen && activeWindow === 'visuals') {
+            setIsVisualsOpen(false);
+            setActiveWindow(null);
+          } else {
+            setIsVisualsOpen(true);
+            setActiveWindow('visuals');
+          }
         }}
         onVisualsMapClick={() => {
           setMapVisualMode('map');
@@ -77,16 +86,26 @@ function App() {
           setInspectorMode(null);
         }}
         onBooksCorpusBuilderClick={() => {
-          setIsBrowseTableOpen(false);
-          setIsCorpusBuilderOpen(true);
-          setActiveWindow('builder');
-          setInspectorMode(null);
+          if (isCorpusBuilderOpen && activeWindow === 'builder') {
+            setIsCorpusBuilderOpen(false);
+            setActiveWindow(null);
+          } else {
+            setIsBrowseTableOpen(false);
+            setIsCorpusBuilderOpen(true);
+            setActiveWindow('builder');
+            setInspectorMode(null);
+          }
         }}
         onBooksTableClick={() => {
-          setIsBrowseTableOpen(true);
-          setIsCorpusBuilderOpen(false);
-          setActiveWindow('browse');
-          setInspectorMode(null);
+          if (isBrowseTableOpen && activeWindow === 'browse') {
+            setIsBrowseTableOpen(false);
+            setActiveWindow(null);
+          } else {
+            setIsBrowseTableOpen(true);
+            setIsCorpusBuilderOpen(false);
+            setActiveWindow('browse');
+            setInspectorMode(null);
+          }
         }}
         onAuthorsClick={() => {
           setInspectorMode('authors');
