@@ -56,8 +56,8 @@ export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
     if (term.length < 2) {
       return { books: [], authors: [], placeResults: [] };
     }
-
     const tokens = tokenize(term);
+
     const books = allBooks
       .filter((book) => hasAllTokens(book.title, tokens))
       .sort((a, b) => {
