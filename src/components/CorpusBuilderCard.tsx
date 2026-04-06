@@ -8,7 +8,15 @@ import { useCorpus } from '../context/CorpusContext';
 import './CorpusBuilderCard.css';
 
 export const CorpusBuilderCard: React.FC = () => {
-    const { allBooks, setActiveDhlabids, activeDhlabids, setIsBrowseTableOpen, downlightPercentile, setDownlightPercentile } = useCorpus();
+    const {
+        allBooks,
+        setActiveDhlabids,
+        activeDhlabids,
+        setIsBrowseTableOpen,
+        downlightPercentile,
+        setDownlightPercentile,
+        API_URL
+    } = useCorpus();
     const [isMinimized, setIsMinimized] = useState(false);
     const [operationMode, setOperationMode] = useState<'add'|'intersect'|'remove'>('add');
     
@@ -82,27 +90,37 @@ export const CorpusBuilderCard: React.FC = () => {
         
         setIsKeywordSearching(true);
         try {
-            // Using the legacy dhlab concordance endpoint to find matching URNs/IDs
-            // We use a large limit to get as many matches as possible for the corpus filtering
-            const response = await fetch(`${useCorpus().LEGACY_API_URL}/concordance`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    queries: keywords.split(',').map(k => k.trim()),
-                    window: 0,
-                    limit: 5000
-                })
-            });
-            
-            if (!response.ok) throw new Error("Keyword search failed");
-            
-            const data = await response.json();
-            // Legacy concordance returns { hits: [ { urn: "...", dhlabid: ... }, ... ] }
-            const foundIds = Array.from(new Set(
-                data.hits
-                    .map((h: any) => h.dhlabid)
-                    .filter((id: any) => id !== undefined && id !== null)
-            )) as number[];
+            const terms = keywords.split(',').map(k => k.trim()).filter(Boolean);
+            if (terms.length === 0) return;
+
+            const responses = await Promise.all(
+                terms.map((term) =>
+                    fetch(`${API_URL}/concordance`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            wordA: term,
+                            window: 5,
+                            before: 5,
+                            after: 5,
+                            perBook: 20,
+                            totalLimit: 5000
+                        })
+                    })
+                )
+            );
+            const failed = responses.find((res) => !res.ok);
+            if (failed) throw new Error("Keyword search failed");
+
+            const datasets = await Promise.all(responses.map((res) => res.json()));
+            const foundIds = Array.from(
+                new Set(
+                    datasets
+                        .flatMap((data: any) => data.rows || [])
+                        .map((row: any) => row.bookId)
+                        .filter((id: any) => typeof id === 'number')
+                )
+            ) as number[];
 
             if (foundIds.length === 0) {
                 alert("Ingen treff på disse nøkkelordene.");
@@ -111,7 +129,7 @@ export const CorpusBuilderCard: React.FC = () => {
             }
         } catch (err) {
             console.error(err);
-            alert("Feil ved søk i innhold. Sjekk tilkoblingen til legacy API.");
+            alert("Feil ved søk i innhold. Sjekk tilkoblingen til API.");
         } finally {
             setIsKeywordSearching(false);
         }
@@ -313,7 +331,7 @@ export const CorpusBuilderCard: React.FC = () => {
                                 {isKeywordSearching ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>}
                             </button>
                         </div>
-                        <small className="text-muted" style={{ fontSize: '0.7rem' }}>Søker i fulltekst via legacy API</small>
+                        <small className="text-muted" style={{ fontSize: '0.7rem' }}>Søker i fulltekst via concordance-endepunktet</small>
                     </div>
 
                     <div className="action-row mt-3 pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>

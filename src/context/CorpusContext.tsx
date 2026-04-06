@@ -88,14 +88,17 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dhlabids: activeDhlabids, maxPlaces: 5000 })
-    }).then(res => res.json())
+    }).then(res => {
+      if (!res.ok) throw new Error("Failed to fetch places");
+      return res.json();
+    })
       .then(data => { 
           setPlaces(data.places || []); 
           setTotalPlaces(data.total_places || (data.places ? data.places.length : 0));
           setIsPlacesLoading(false); 
       })
       .catch(err => { console.error(err); setIsPlacesLoading(false); });
-  }, [activeDhlabids]);
+  }, [activeDhlabids, API_URL]);
 
   const activeBooksMetadata = useMemo(() => {
     const activeSet = new Set(activeDhlabids);

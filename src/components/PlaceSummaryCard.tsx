@@ -18,7 +18,7 @@ interface PlaceBookDetail {
 }
 
 export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, onClose }) => {
-    const { activeDhlabids, API_URL, LEGACY_API_URL } = useCorpus();
+    const { activeDhlabids, API_URL } = useCorpus();
     const [books, setBooks] = useState<PlaceBookDetail[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [concordance, setConcordance] = useState<string[]>([]);
@@ -39,7 +39,10 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, onClo
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ dhlabids: activeDhlabids, token })
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to fetch place details");
+            return res.json();
+        })
         .then(data => {
             setBooks(data.books || []);
             setIsLoading(false);
@@ -55,22 +58,29 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, onClo
         setIsConcLoading(true);
         setShowConc(true);
 
-        fetch(`${LEGACY_API_URL}/concordance`, {
+        fetch(`${API_URL}/concordance`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                queries: [token],
+                wordA: token,
                 window: 25,
-                limit: 10
+                before: 15,
+                after: 15,
+                perBook: 2,
+                totalLimit: 10,
+                useFilter: true,
+                filterIds: activeDhlabids
             })
         })
-        .then(res => res.json())
+        .then(res => {
+            if (!res.ok) throw new Error("Failed to fetch concordance");
+            return res.json();
+        })
         .then(data => {
-            const snippets = data.hits.map((h: any) => {
-                const before = h.before || '';
-                const after = h.after || '';
-                return `...${before} **${token}** ${after}...`;
-            });
+            const snippets = (data.rows || []).map((row: any) => {
+                const fragment = typeof row.frag === 'string' ? row.frag : '';
+                return fragment ? `...${fragment}...` : '';
+            }).filter(Boolean);
             setConcordance(snippets);
             setIsConcLoading(false);
         })
@@ -116,7 +126,13 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, onClo
                                         <div className="text-center p-2"><i className="fas fa-spinner fa-spin"></i></div>
                                     ) : concordance.length > 0 ? (
                                         concordance.map((c, i) => (
-                                            <div key={i} className="concordance-item" dangerouslySetInnerHTML={{ __html: c.replace(/\*\*(.*?)\*\*/g, '<mark>$1</mark>') }} />
+                                            <div
+                                                key={i}
+                                                className="concordance-item"
+                                                dangerouslySetInnerHTML={{
+                                                    __html: c.replaceAll(token, `<mark>${token}</mark>`)
+                                                }}
+                                            />
                                         ))
                                     ) : (
                                         <div className="text-muted small">Ingen teksteksempler funnet.</div>
