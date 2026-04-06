@@ -1,0 +1,17 @@
+.visuals-launcher {
+  position: absolute;
+  top: 74px;
+  left: 18px;
+  z-index: 2050;
+}
+
+.visuals-launcher-chip {
+  min-width: 126px;
+  justify-content: center;
+}
+
+.visuals-launcher .chip-menu {
+  left: 0;
+  top: calc(100% + 8px);
+  bottom: auto;
+}

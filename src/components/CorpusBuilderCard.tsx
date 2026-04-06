@@ -12,11 +12,8 @@ export const CorpusBuilderCard: React.FC = () => {
         allBooks,
         setActiveDhlabids,
         activeDhlabids,
-        setIsBrowseTableOpen,
         isCorpusBuilderOpen,
         setIsCorpusBuilderOpen,
-        downlightPercentile,
-        setDownlightPercentile,
         API_URL
     } = useCorpus();
     const [operationMode, setOperationMode] = useState<'add'|'intersect'|'remove'>('add');
@@ -257,20 +254,6 @@ export const CorpusBuilderCard: React.FC = () => {
                         </div>
                     </div>
 
-                    <div className="form-group mb-3">
-                        <label>Kartfokus (Nedton lavfrekvente steder: {downlightPercentile}%)</label>
-                        <div style={{ padding: '0 8px' }}>
-                            <Slider 
-                                min={0} 
-                                max={99} 
-                                value={downlightPercentile} 
-                                onChange={(val) => setDownlightPercentile(val as number)} 
-                                trackStyle={[{ backgroundColor: '#dc2626' }]}
-                                handleStyle={[{ borderColor: '#ef4444', backgroundColor: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }]}
-                            />
-                        </div>
-                    </div>
-
                     <div className="form-group">
                         <label>Metadata</label>
                         <Select 
@@ -344,9 +327,6 @@ export const CorpusBuilderCard: React.FC = () => {
                             <i className="fas fa-file-upload"></i> Import
                             <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={importCorpus} />
                         </label>
-                        <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => setIsBrowseTableOpen(true)}>
-                            <i className="fas fa-list"></i> Vis Tabell
-                        </button>
                     </div>
             </div>
         </Rnd>

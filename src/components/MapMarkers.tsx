@@ -6,6 +6,8 @@ interface MapMarkersProps {
     onSelectPlace: (token: string) => void;
 }
 
+const MAP_MARKER_LIMIT = 1800;
+
 export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace }) => {
     const { places, isPlacesLoading, downlightPercentile } = useCorpus();
     const map = useMap();
@@ -13,8 +15,11 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace }) => {
     // Beregn størrelsene iterativt med np.log1p math ekvivalent for React
     const renderedMarkers = useMemo(() => {
         if (places.length === 0) return [];
+        const mapPlaces = [...places]
+            .sort((a, b) => b.frequency - a.frequency)
+            .slice(0, MAP_MARKER_LIMIT);
         
-        const frequencies = places.map(p => p.frequency);
+        const frequencies = mapPlaces.map(p => p.frequency);
         const minFreq = Math.min(...frequencies);
         const maxFreq = Math.max(...frequencies);
         const logMin = Math.log1p(minFreq);
@@ -24,16 +29,16 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace }) => {
         let thresholdFreq = 0;
         if (downlightPercentile > 0) {
            const sortedFreqs = [...frequencies].sort((a,b)=>a-b);
-           const pIdx = Math.floor((downlightPercentile / 100) * (places.length - 1));
+           const pIdx = Math.floor((downlightPercentile / 100) * (mapPlaces.length - 1));
            thresholdFreq = sortedFreqs[pIdx];
         }
 
-        return places.map(place => {
+        return mapPlaces.map(place => {
             // Normalisert radius
             let radius = 6;
             if (logMax > logMin) {
                 const norm = (Math.log1p(place.frequency) - logMin) / (logMax - logMin);
-                radius = 6 + norm * 18; // Max 24px radius
+                radius = 6 + norm * 18;
             }
             
             const isDownlighted = place.frequency <= thresholdFreq;

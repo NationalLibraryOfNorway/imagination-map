@@ -36,10 +36,14 @@ interface CorpusContextType {
   setIsBrowseTableOpen: (val: boolean) => void;
   isCorpusBuilderOpen: boolean;
   setIsCorpusBuilderOpen: (val: boolean) => void;
+  isVisualsOpen: boolean;
+  setIsVisualsOpen: (val: boolean) => void;
   // Map properties
   places: PlacePoint[];
   totalPlaces: number;
   isPlacesLoading: boolean;
+  mapVisualMode: 'map' | 'heatmap';
+  setMapVisualMode: (mode: 'map' | 'heatmap') => void;
   downlightPercentile: number;
   setDownlightPercentile: (val: number) => void;
 }
@@ -53,10 +57,12 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [error, setError] = useState<string | null>(null);
   const [isBrowseTableOpen, setIsBrowseTableOpen] = useState(false);
   const [isCorpusBuilderOpen, setIsCorpusBuilderOpen] = useState(false);
+  const [isVisualsOpen, setIsVisualsOpen] = useState(false);
   
   const [places, setPlaces] = useState<PlacePoint[]>([]);
   const [totalPlaces, setTotalPlaces] = useState<number>(0);
   const [isPlacesLoading, setIsPlacesLoading] = useState(false);
+  const [mapVisualMode, setMapVisualMode] = useState<'map' | 'heatmap'>('map');
   const [downlightPercentile, setDownlightPercentile] = useState<number>(0);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://api.nb.no/dhlab/imag';
@@ -122,9 +128,13 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setIsBrowseTableOpen,
       isCorpusBuilderOpen,
       setIsCorpusBuilderOpen,
+      isVisualsOpen,
+      setIsVisualsOpen,
       places,
       totalPlaces,
       isPlacesLoading,
+      mapVisualMode,
+      setMapVisualMode,
       downlightPercentile,
       setDownlightPercentile
     }}>

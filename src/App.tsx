@@ -3,15 +3,18 @@ import { MapContainer, TileLayer } from 'react-leaflet'
 import { StatsHUD } from './components/StatsHUD'
 import { CorpusBuilderCard } from './components/CorpusBuilderCard'
 import { MapMarkers } from './components/MapMarkers'
+import { HeatmapLayer } from './components/HeatmapLayer'
 import { PlaceSummaryCard } from './components/PlaceSummaryCard'
 import { CorpusBrowseTable } from './components/CorpusBrowseTable'
 import { EntityInspectorPanel } from './components/EntityInspectorPanel'
 import { Omnibox } from './components/Omnibox'
+import { VisualsCard } from './components/VisualsCard'
+import { VisualsLauncherChip } from './components/VisualsLauncherChip'
 import { useCorpus } from './context/CorpusContext'
 import './index.css'
 
 function App() {
-  const { setIsBrowseTableOpen, setIsCorpusBuilderOpen } = useCorpus();
+  const { setIsBrowseTableOpen, setIsCorpusBuilderOpen, setIsVisualsOpen, setMapVisualMode, mapVisualMode } = useCorpus();
   const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
   const [inspectorMode, setInspectorMode] = useState<'authors' | 'places' | null>(null);
   const [inspectorTab, setInspectorTab] = useState<'list' | 'images'>('list');
@@ -24,11 +27,28 @@ function App() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <MapMarkers onSelectPlace={setSelectedPlace} />
+        {mapVisualMode === 'heatmap' ? (
+          <HeatmapLayer />
+        ) : (
+          <MapMarkers onSelectPlace={setSelectedPlace} />
+        )}
       </MapContainer>
 
       {/* Floating UI Elements */}
       <Omnibox onSelectPlace={setSelectedPlace} />
+      <VisualsLauncherChip
+        onVisualsDefaultClick={() => {
+          setIsVisualsOpen(true);
+        }}
+        onVisualsMapClick={() => {
+          setMapVisualMode('map');
+          setIsVisualsOpen(true);
+        }}
+        onVisualsHeatmapClick={() => {
+          setMapVisualMode('heatmap');
+          setIsVisualsOpen(true);
+        }}
+      />
       <StatsHUD
         onBooksDefaultClick={() => {
           setIsBrowseTableOpen(true);
@@ -63,6 +83,7 @@ function App() {
         }}
       />
       <CorpusBuilderCard />
+      <VisualsCard />
       <CorpusBrowseTable />
       <EntityInspectorPanel
         mode={inspectorMode}

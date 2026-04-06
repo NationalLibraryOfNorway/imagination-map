@@ -21,7 +21,7 @@ export const StatsHUD: React.FC<StatsHUDProps> = ({
     onPlacesListClick,
     onPlacesImagesClick
 }) => {
-    const { activeBooksMetadata, allBooks, isLoading, places, totalPlaces } = useCorpus();
+    const { activeBooksMetadata, isLoading, places, totalPlaces } = useCorpus();
     const [openMenu, setOpenMenu] = useState<'books' | 'authors' | 'places' | null>(null);
     const closeTimer = useRef<number | null>(null);
 
@@ -135,12 +135,6 @@ export const StatsHUD: React.FC<StatsHUDProps> = ({
                 <i className="fas fa-calendar-alt"></i>
                 <span className="chip-text">
                     {stats.yearString}
-                </span>
-            </div>
-            <div className="chip active-db">
-                <i className="fas fa-database"></i>
-                <span className="chip-text">
-                    Klar ({allBooks.length.toLocaleString()})
                 </span>
             </div>
         </div>
