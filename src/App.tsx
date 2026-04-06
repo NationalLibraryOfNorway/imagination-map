@@ -19,7 +19,7 @@ function App() {
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       {/* Map layer */}
-      <MapContainer center={[60.472, 8.468]} zoom={6} className="map-container">
+      <MapContainer center={[60.472, 8.468]} zoom={6} className="map-container" zoomControl={false}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
