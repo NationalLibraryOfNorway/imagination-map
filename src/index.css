@@ -9,6 +9,9 @@
   --glass-border: rgba(255, 255, 255, 0.5);
   --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
   --glass-backdrop: blur(10px);
+  --ui-gutter: 16px;
+  --ui-top-rail-height: 62px;
+  --ui-left-rail-width: 152px;
 }
 
 * {
@@ -28,6 +31,26 @@ body, html, #root {
   width: 100%;
   height: 100vh;
   z-index: 0;
+}
+
+.app-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.workspace-zone {
+  position: absolute;
+  top: calc(var(--ui-top-rail-height) + var(--ui-gutter));
+  left: calc(var(--ui-left-rail-width) + var(--ui-gutter));
+  right: var(--ui-gutter);
+  bottom: var(--ui-gutter);
+  pointer-events: none;
+  z-index: 1600;
+}
+
+.workspace-zone > * {
+  pointer-events: auto;
 }
 
 .floating-panel {

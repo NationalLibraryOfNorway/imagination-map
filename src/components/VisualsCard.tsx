@@ -21,7 +21,7 @@ export const VisualsCard: React.FC = () => {
 
   return (
     <Rnd
-      default={{ x: 18, y: 74, width: 320, height: 'auto' }}
+      default={{ x: 20, y: 20, width: 320, height: 'auto' }}
       minWidth={280}
       bounds="parent"
       cancel=".no-drag"

@@ -31,7 +31,7 @@ function App() {
   const [inspectorTab, setInspectorTab] = useState<'list' | 'images'>('list');
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div className="app-shell">
       {/* Map layer */}
       <MapContainer center={[60.472, 8.468]} zoom={6} className="map-container" zoomControl={false}>
         <TileLayer
@@ -80,20 +80,21 @@ function App() {
       />
       <StatsHUD
         onBooksDefaultClick={() => {
-          setIsBrowseTableOpen(true);
-          setIsCorpusBuilderOpen(false);
-          setActiveWindow('browse');
-          setInspectorMode(null);
+          if (isBrowseTableOpen && activeWindow === 'browse') {
+            setIsBrowseTableOpen(false);
+            setActiveWindow(null);
+          } else {
+            setIsBrowseTableOpen(true);
+            setActiveWindow('browse');
+          }
         }}
         onBooksCorpusBuilderClick={() => {
           if (isCorpusBuilderOpen && activeWindow === 'builder') {
             setIsCorpusBuilderOpen(false);
             setActiveWindow(null);
           } else {
-            setIsBrowseTableOpen(false);
             setIsCorpusBuilderOpen(true);
             setActiveWindow('builder');
-            setInspectorMode(null);
           }
         }}
         onBooksTableClick={() => {
@@ -102,9 +103,7 @@ function App() {
             setActiveWindow(null);
           } else {
             setIsBrowseTableOpen(true);
-            setIsCorpusBuilderOpen(false);
             setActiveWindow('browse');
-            setInspectorMode(null);
           }
         }}
         onAuthorsClick={() => {
@@ -128,19 +127,21 @@ function App() {
           setActiveWindow('entity');
         }}
       />
-      <CorpusBuilderCard />
-      <VisualsCard />
-      <CorpusBrowseTable />
-      <EntityInspectorPanel
-        mode={inspectorMode}
-        initialTab={inspectorTab}
-        onClose={() => setInspectorMode(null)}
-        onSelectPlace={(token) => {
-          setSelectedPlace(token);
-          setActiveWindow('summary');
-        }}
-      />
-      <PlaceSummaryCard token={selectedPlace} onClose={() => setSelectedPlace(null)} />
+      <div className="workspace-zone">
+        <CorpusBuilderCard />
+        <VisualsCard />
+        <CorpusBrowseTable />
+        <EntityInspectorPanel
+          mode={inspectorMode}
+          initialTab={inspectorTab}
+          onClose={() => setInspectorMode(null)}
+          onSelectPlace={(token) => {
+            setSelectedPlace(token);
+            setActiveWindow('summary');
+          }}
+        />
+        <PlaceSummaryCard token={selectedPlace} onClose={() => setSelectedPlace(null)} />
+      </div>
 
     </div>
   )

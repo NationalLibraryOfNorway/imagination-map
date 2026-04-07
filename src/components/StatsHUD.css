@@ -1,7 +1,7 @@
 .stats-hud-container {
     position: absolute;
-    top: 18px;
-    right: 18px;
+    top: var(--ui-gutter);
+    right: var(--ui-gutter);
     display: flex;
     gap: 12px;
     z-index: 5000;
@@ -104,7 +104,7 @@
     .stats-hud-container {
         flex-wrap: wrap;
         justify-content: flex-end;
-        top: 64px;
+        top: calc(var(--ui-top-rail-height) + 2px);
         right: 10px;
         width: calc(100% - 20px);
         left: 10px;

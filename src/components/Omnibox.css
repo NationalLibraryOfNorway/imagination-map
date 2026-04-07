@@ -1,7 +1,7 @@
 .omnibox-container {
   position: absolute;
-  top: 18px;
-  left: 18px;
+  top: var(--ui-gutter);
+  left: var(--ui-gutter);
   width: min(560px, calc(100vw - 36px));
   z-index: 5200;
 }
