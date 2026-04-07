@@ -131,7 +131,10 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
 
   const placePageRows = useMemo(() => {
     const start = (placePage - 1) * rowsPerPage;
-    return placeRowsView.slice(start, start + rowsPerPage);
+    return placeRowsView.slice(start, start + rowsPerPage).map((place, index) => ({
+      place,
+      globalIndex: start + index + 1
+    }));
   }, [placeRowsView, placePage, rowsPerPage]);
 
   const placePageStart = placeRowsView.length === 0 ? 0 : (placePage - 1) * rowsPerPage + 1;
@@ -322,8 +325,8 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
                 </tr>
               </thead>
               <tbody>
-                {placePageRows.map((place) => (
-                  <tr key={place.id} className={selectedKey === place.token ? 'active' : ''}>
+                {placePageRows.map(({ place, globalIndex }) => (
+                  <tr key={`${place.id}-${place.token}-${globalIndex}`} className={selectedKey === place.token ? 'active' : ''}>
                     <td>{place.token}</td>
                     <td>{place.name || '-'}</td>
                     <td>{place.doc_count.toLocaleString()}</td>
