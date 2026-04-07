@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Rnd } from 'react-rnd';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
+import html2canvas from 'html2canvas';
 import { useCorpus } from '../context/CorpusContext';
 import './VisualsCard.css';
 
@@ -16,6 +17,50 @@ export const VisualsCard: React.FC = () => {
     downlightPercentile,
     setDownlightPercentile
   } = useCorpus();
+  const [isExporting, setIsExporting] = useState(false);
+
+  const wait = (ms: number) => new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+
+  const downloadViewport = async (targetMode: 'map' | 'heatmap') => {
+    if (isExporting) return;
+    setIsExporting(true);
+    const previousMode = mapVisualMode;
+    try {
+      if (mapVisualMode !== targetMode) {
+        setMapVisualMode(targetMode);
+        await wait(450);
+      } else {
+        await wait(150);
+      }
+
+      const mapElement = document.querySelector('.map-container') as HTMLElement | null;
+      if (!mapElement) {
+        alert('Fant ikke kart-viewport for nedlasting.');
+        return;
+      }
+
+      const canvas = await html2canvas(mapElement, {
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scale: Math.min(window.devicePixelRatio || 1, 2),
+        logging: false
+      });
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = `imagination_${targetMode}_viewport.png`;
+      link.click();
+    } catch (error) {
+      console.error(error);
+      alert('Kunne ikke lage nedlasting av kartutsnittet.');
+    } finally {
+      if (previousMode !== targetMode) {
+        setMapVisualMode(previousMode);
+      }
+      setIsExporting(false);
+    }
+  };
 
   if (!isVisualsOpen) return null;
 
@@ -70,6 +115,26 @@ export const VisualsCard: React.FC = () => {
               trackStyle={[{ backgroundColor: '#dc2626' }]}
               handleStyle={[{ borderColor: '#ef4444', backgroundColor: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }]}
             />
+          </div>
+        </div>
+
+        <div className="visuals-section">
+          <label>Nedlasting av viewport</label>
+          <div className="visuals-export-row">
+            <button
+              className="visuals-toggle"
+              onClick={() => downloadViewport('map')}
+              disabled={isExporting}
+            >
+              <i className="fas fa-download"></i> Kart
+            </button>
+            <button
+              className="visuals-toggle"
+              onClick={() => downloadViewport('heatmap')}
+              disabled={isExporting}
+            >
+              <i className="fas fa-download"></i> Heatmap
+            </button>
           </div>
         </div>
       </div>

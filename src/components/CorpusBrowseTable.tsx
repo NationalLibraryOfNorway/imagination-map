@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Rnd } from 'react-rnd';
 import { useCorpus, type BookMetadata } from '../context/CorpusContext';
+import { downloadCsv } from '../utils/download';
 import './CorpusBrowseTable.css';
 
 type SortKey = keyof BookMetadata;
@@ -9,6 +10,24 @@ export const CorpusBrowseTable: React.FC = () => {
     const { activeBooksMetadata, isBrowseTableOpen, setIsBrowseTableOpen, activeWindow, setActiveWindow } = useCorpus();
     const [sortKey, setSortKey] = useState<SortKey>('author');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
+    const handleDownload = () => {
+        const rows = sortedBooks.map((b) => ([
+            b.urn.replace('URN:NBN:no-nb_digibok_', ''),
+            b.author || '',
+            b.year ?? '',
+            b.title || '',
+            b.category || '',
+            b.unique_places ?? 0,
+            b.total_mentions ?? 0,
+            b.dhlabid
+        ]));
+        downloadCsv(
+            `imagination_korpus_${sortedBooks.length}_boker.csv`,
+            ['URN', 'Forfatter', 'Aar', 'Tittel', 'Kategori', 'Antall steder', 'Antall mentions', 'dhlabid'],
+            rows
+        );
+    };
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) {
@@ -65,6 +84,9 @@ export const CorpusBrowseTable: React.FC = () => {
                         <i className="fas fa-list"></i> Aktivt Korpus ({activeBooksMetadata.length} bøker)
                     </div>
                     <div className="table-controls no-drag">
+                        <button onClick={handleDownload} title="Last ned korpusliste (CSV)">
+                            <i className="fas fa-download"></i>
+                        </button>
                         <button onClick={() => setIsBrowseTableOpen(false)}>
                             <i className="fas fa-times"></i>
                         </button>

@@ -161,25 +161,6 @@ export const CorpusBuilderCard: React.FC = () => {
         setSelectedTitles([]);
     }
 
-    const exportCorpus = () => {
-        const activeSet = new Set(activeDhlabids);
-        const activeBooks = allBooks.filter(b => activeSet.has(b.dhlabid));
-        
-        const wsData = activeBooks.map(b => ({
-            'URN': b.urn.replace('URN:NBN:no-nb_digibok_', ''),
-            'Forfatter': b.author || '',
-            'År': b.year || '',
-            'Tittel': b.title || '',
-            'Kategori': b.category || '',
-            'dhlabid': b.dhlabid
-        }));
-
-        const ws = XLSX.utils.json_to_sheet(wsData);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Korpus");
-        XLSX.writeFile(wb, `imagination_corpus_${activeBooks.length}_boker.xlsx`);
-    };
-
     const importCorpus = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -324,9 +305,6 @@ export const CorpusBuilderCard: React.FC = () => {
                     </div>
 
                     <div className="action-row mt-3 pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>
-                        <button className="btn-op outline flex-grow-1" style={{ fontSize: '0.8rem', padding: '6px' }} onClick={exportCorpus} title="Lagre Korpus som regneark">
-                            <i className="fas fa-file-excel"></i> Eksport
-                        </button>
                         <label className="btn-op outline flex-grow-1" style={{ fontSize: '0.8rem', cursor: 'pointer', textAlign: 'center', padding: '6px' }} title="Last opp regneark for modifisering">
                             <i className="fas fa-file-upload"></i> Import
                             <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={importCorpus} />

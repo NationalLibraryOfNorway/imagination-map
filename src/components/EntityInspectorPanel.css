@@ -92,6 +92,12 @@
   padding: 8px;
 }
 
+.entity-list-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
 .entity-row {
   width: 100%;
   border: 1px solid transparent;

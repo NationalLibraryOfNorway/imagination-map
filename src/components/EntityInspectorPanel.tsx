@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Rnd } from 'react-rnd';
 import { useCorpus } from '../context/CorpusContext';
 import { fetchNbCatalogImages, type CatalogImage } from '../utils/iiif';
+import { downloadCsv } from '../utils/download';
 import './EntityInspectorPanel.css';
 
 interface EntityInspectorPanelProps {
@@ -17,6 +18,14 @@ interface ListItem {
   key: string;
   label: string;
   sublabel: string;
+}
+
+interface AuthorStat {
+  key: string;
+  label: string;
+  books: number;
+  places: number;
+  mentions: number;
 }
 
 type PlaceSortKey = 'token' | 'name' | 'doc_count' | 'frequency';
@@ -44,7 +53,16 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
   onClose,
   onSelectPlace
 }) => {
-  const { activeBooksMetadata, places, isPlacesLoading, activeWindow, setActiveWindow } = useCorpus();
+  const {
+    activeBooksMetadata,
+    activeDhlabids,
+    places,
+    totalPlaces,
+    isPlacesLoading,
+    API_URL,
+    activeWindow,
+    setActiveWindow
+  } = useCorpus();
   const [activeTab, setActiveTab] = useState<'list' | 'images'>(initialTab);
   const [selectedKey, setSelectedKey] = useState<string>('');
   const [images, setImages] = useState<CatalogImage[]>([]);
@@ -52,6 +70,7 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
   const [imagesError, setImagesError] = useState<string | null>(null);
   const [authorImageQuery, setAuthorImageQuery] = useState('');
   const [authorImageSearchTerm, setAuthorImageSearchTerm] = useState('');
+  const [authorQuery, setAuthorQuery] = useState('');
   const [placeQuery, setPlaceQuery] = useState('');
   const [placeSortKey, setPlaceSortKey] = useState<PlaceSortKey>('frequency');
   const [placeSortDir, setPlaceSortDir] = useState<'asc' | 'desc'>('desc');
@@ -60,31 +79,93 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
   const [sampleSize, setSampleSize] = useState(500);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [placePage, setPlacePage] = useState(1);
+  const [allPlaceRows, setAllPlaceRows] = useState<typeof places | null>(null);
+
+  useEffect(() => {
+    if (mode !== 'places' || activeDhlabids.length === 0) {
+      setAllPlaceRows(null);
+      return;
+    }
+    if (totalPlaces <= places.length) {
+      setAllPlaceRows(places);
+      return;
+    }
+
+    let cancelled = false;
+    fetch(`${API_URL}/api/places`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dhlabids: activeDhlabids,
+        maxPlaces: totalPlaces
+      })
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to fetch full places set');
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setAllPlaceRows(data.places || []);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error(err);
+        setAllPlaceRows(places);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, activeDhlabids, totalPlaces, places, API_URL]);
+
+  const placesData = mode === 'places' ? (allPlaceRows || places) : places;
 
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab, mode]);
 
-  const items = useMemo<ListItem[]>(() => {
-    if (mode === 'authors') {
-      const counts = new Map<string, number>();
-      for (const book of activeBooksMetadata) {
-        if (!book.author) continue;
-        for (const author of splitAuthors(book.author)) {
-          counts.set(author, (counts.get(author) || 0) + 1);
-        }
-      }
-      return Array.from(counts.entries())
-        .sort((a, b) => b[1] - a[1])
-        .map(([author, count]) => ({
+  const authorRows = useMemo<AuthorStat[]>(() => {
+    const stats = new Map<string, AuthorStat>();
+    for (const book of activeBooksMetadata) {
+      if (!book.author) continue;
+      for (const author of splitAuthors(book.author)) {
+        const existing = stats.get(author) || {
           key: author,
           label: author,
-          sublabel: `${count.toLocaleString()} bøker`
-        }));
+          books: 0,
+          places: 0,
+          mentions: 0
+        };
+        existing.books += 1;
+        existing.places += book.unique_places || 0;
+        existing.mentions += book.total_mentions || 0;
+        stats.set(author, existing);
+      }
+    }
+    return Array.from(stats.values()).sort((a, b) => {
+      if (b.books !== a.books) return b.books - a.books;
+      return b.mentions - a.mentions;
+    });
+  }, [activeBooksMetadata]);
+
+  const filteredAuthorRows = useMemo(() => {
+    const query = authorQuery.trim().toLowerCase();
+    if (!query) return authorRows;
+    return authorRows.filter((row) => row.label.toLowerCase().includes(query));
+  }, [authorRows, authorQuery]);
+
+  const items = useMemo<ListItem[]>(() => {
+    if (mode === 'authors') {
+      return filteredAuthorRows.map((row) => ({
+        key: row.key,
+        label: row.label,
+        sublabel: `${row.books.toLocaleString()} bøker • ${row.places.toLocaleString()} steder • ${row.mentions.toLocaleString()} mentions`
+      }));
     }
 
     if (mode === 'places') {
-      return [...places]
+      return [...placesData]
         .sort((a, b) => b.frequency - a.frequency)
         .map((place) => ({
           key: place.token,
@@ -94,11 +175,41 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
     }
 
     return [];
-  }, [mode, activeBooksMetadata, places]);
+  }, [mode, filteredAuthorRows, placesData]);
+
+  const handleDownloadAuthors = () => {
+    const rows = filteredAuthorRows.map((row) => ([
+      row.label,
+      row.books,
+      row.places,
+      row.mentions
+    ]));
+    downloadCsv(
+      `imagination_forfattere_${filteredAuthorRows.length}.csv`,
+      ['Forfatter', 'Antall boeker', 'Antall steder', 'Antall mentions'],
+      rows
+    );
+  };
+
+  const handleDownloadPlaces = () => {
+    const rows = placeRowsView.map((place) => ([
+      place.token,
+      place.name || '',
+      place.doc_count,
+      place.frequency,
+      place.lat,
+      place.lon
+    ]));
+    downloadCsv(
+      `imagination_steder_${placeRowsView.length}.csv`,
+      ['Historisk navn', 'Moderne', 'Antall boeker', 'Antall mentions', 'Lat', 'Lon'],
+      rows
+    );
+  };
 
   const placeRows = useMemo(() => {
     const query = placeQuery.trim().toLowerCase();
-    let rows = [...places];
+    let rows = [...placesData];
     if (query) {
       rows = rows.filter((place) =>
         (place.token || '').toLowerCase().includes(query) ||
@@ -114,7 +225,7 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
       return placeSortDir === 'asc' ? cmp : -cmp;
     });
     return rows;
-  }, [places, placeQuery, placeSortKey, placeSortDir]);
+  }, [placesData, placeQuery, placeSortKey, placeSortDir]);
 
   const placeRowsView = useMemo(() => {
     if (!sampleEnabled || placeRows.length <= sampleSize) return placeRows;
@@ -235,12 +346,6 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
         >
           Liste
         </button>
-        <button
-          className={`entity-tab ${activeTab === 'images' ? 'active' : ''}`}
-          onClick={() => setActiveTab('images')}
-        >
-          Bilder (IIIF)
-        </button>
       </div>
 
       {mode === 'places' && activeTab === 'list' ? (
@@ -284,6 +389,9 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
               <option value={100}>100 / side</option>
               <option value={200}>200 / side</option>
             </select>
+            <button type="button" className="entity-action" onClick={handleDownloadPlaces}>
+              <i className="fas fa-download"></i> Last ned
+            </button>
           </div>
 
           <div className="entity-places-meta">
@@ -367,6 +475,19 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
       ) : (
       <div className={`entity-panel-body ${activeTab === 'list' ? 'list-only' : ''}`}>
         <div className="entity-list">
+          {mode === 'authors' && activeTab === 'list' && (
+            <div className="entity-list-toolbar">
+              <input
+                className="entity-search-input"
+                placeholder="Sok forfatter..."
+                value={authorQuery}
+                onChange={(e) => setAuthorQuery(e.target.value)}
+              />
+              <button type="button" className="entity-action" onClick={handleDownloadAuthors}>
+                <i className="fas fa-download"></i> Last ned
+              </button>
+            </div>
+          )}
           {!hasRows ? (
             <div className="entity-empty">
               {mode === 'places' && isPlacesLoading ? 'Laster steder...' : `Ingen ${title.toLowerCase()} i aktivt korpus`}
