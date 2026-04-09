@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
+import { Rnd } from 'react-rnd';
 import { useCorpus } from '../context/CorpusContext';
 import './PlaceSummaryCard.css';
 
@@ -81,10 +82,11 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
     const { activeDhlabids, API_URL, activeWindow, setActiveWindow, places } = useCorpus();
     const [books, setBooks] = useState<PlaceBookDetail[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [showConc, setShowConc] = useState(false);
     const [collapsedBooks, setCollapsedBooks] = useState<Record<number, boolean>>({});
     const [bookConcordances, setBookConcordances] = useState<Record<number, ConcordanceHit[]>>({});
     const [bookConcordanceLoading, setBookConcordanceLoading] = useState<Record<number, boolean>>({});
+    const [isFullExportLoading, setIsFullExportLoading] = useState(false);
+    const [fullExportProgress, setFullExportProgress] = useState<{ done: number; total: number } | null>(null);
     const concordanceCacheRef = useRef<Map<string, ConcordanceHit[]>>(new Map());
 
     const effectivePlaceId = placeId || (token ? places.find((p) => p.token === token)?.id : undefined);
@@ -105,7 +107,6 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
     useEffect(() => {
         if (!token || activeDhlabids.length === 0) {
             setBooks([]);
-            setShowConc(false);
             setBookConcordances({});
             setBookConcordanceLoading({});
             return;
@@ -113,7 +114,6 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
 
         setIsLoading(true);
         setBooks([]);
-        setShowConc(false);
         setBookConcordances({});
         setBookConcordanceLoading({});
         setCollapsedBooks({});
@@ -136,52 +136,41 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
         });
     }, [token, activeDhlabids, API_URL]);
 
-    const fetchConcordance = () => {
-        if (!token) return;
-        setShowConc(true);
-    };
-
     const fetchBookConcordance = async (bookId: number) => {
         if (!token) return;
-        const cacheKey = `${token}::${effectivePlaceId || ''}::${bookId}`;
-        const cached = concordanceCacheRef.current.get(cacheKey);
-        if (cached) {
-            setBookConcordances((prev) => ({ ...prev, [bookId]: cached }));
-            return;
-        }
-
-        setBookConcordanceLoading((prev) => ({ ...prev, [bookId]: true }));
-        const geoLookupCandidates = buildGeoLookupCandidates(effectivePlaceId);
-
-        try {
+        const resolveHits = async (): Promise<ConcordanceHit[]> => {
+            const geoLookupCandidates = buildGeoLookupCandidates(effectivePlaceId);
             let hits: ConcordanceHit[] = [];
             if (geoLookupCandidates.length > 0) {
-                const candidateResults = await Promise.all(
-                    geoLookupCandidates.map(async (candidateId) => {
-                        try {
-                            const res = await fetch(`${API_URL}/or_query`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    terms: [`#geo:${candidateId}`],
-                                    window: 15,
-                                    before: 15,
-                                    after: 15,
-                                    totalLimit: 40,
-                                    renderHits: true,
-                                    useFilter: true,
-                                    filterIds: [bookId]
-                                })
-                            });
-                            if (!res.ok) return [] as ConcordanceHit[];
-                            const data = await res.json();
-                            return extractHits(data);
-                        } catch {
-                            return [] as ConcordanceHit[];
+                for (const candidateId of geoLookupCandidates) {
+                    try {
+                        const res = await fetch(`${API_URL}/or_query`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                terms: [`#geo:${candidateId}`],
+                                key_type: 1,
+                                window: 8,
+                                before: 8,
+                                after: 8,
+                                totalLimit: 12,
+                                renderHits: true,
+                                _perf: true,
+                                useFilter: true,
+                                filterIds: [bookId]
+                            })
+                        });
+                        if (!res.ok) continue;
+                        const data = await res.json();
+                        const candidateHits = uniqueHits(extractHits(data));
+                        if (candidateHits.length > 0) {
+                            hits = candidateHits;
+                            break;
                         }
-                    })
-                );
-                hits = uniqueHits(candidateResults.flat());
+                    } catch {
+                        // Ignore and try next candidate/fallback.
+                    }
+                }
             }
 
             if (hits.length === 0) {
@@ -190,11 +179,12 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         wordA: token,
-                        window: 25,
-                        before: 15,
-                        after: 15,
-                        perBook: 20,
-                        totalLimit: 40,
+                        window: 8,
+                        before: 8,
+                        after: 8,
+                        perBook: 12,
+                        totalLimit: 12,
+                        _perf: true,
                         useFilter: true,
                         filterIds: [bookId]
                     })
@@ -204,7 +194,19 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
                     hits = uniqueHits(extractHits(data));
                 }
             }
+            return hits;
+        };
 
+        const cacheKey = `${token}::${effectivePlaceId || ''}::${bookId}`;
+        const cached = concordanceCacheRef.current.get(cacheKey);
+        if (cached) {
+            setBookConcordances((prev) => ({ ...prev, [bookId]: cached }));
+            return;
+        }
+
+        setBookConcordanceLoading((prev) => ({ ...prev, [bookId]: true }));
+        try {
+            const hits = await resolveHits();
             concordanceCacheRef.current.set(cacheKey, hits);
             setBookConcordances((prev) => ({ ...prev, [bookId]: hits }));
         } catch (err) {
@@ -236,15 +238,72 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
         XLSX.writeFile(workbook, `stedskonkordans-${token || 'sted'}-${stamp}.xlsx`);
     };
 
+    const downloadFullPlaceListExcel = async () => {
+        if (!token || sortedBooks.length === 0 || isFullExportLoading) return;
+        setIsFullExportLoading(true);
+        setFullExportProgress({ done: 0, total: sortedBooks.length });
+        try {
+            const allRows: Array<{ dhlabid: number; forfatter: string; tittel: string; år: number | ''; konk: string }> = [];
+            for (let i = 0; i < sortedBooks.length; i += 1) {
+                const book = sortedBooks[i];
+                const cacheKey = `${token}::${effectivePlaceId || ''}::${book.dhlabid}`;
+                let hits = concordanceCacheRef.current.get(cacheKey);
+                if (!hits) {
+                    await fetchBookConcordance(book.dhlabid);
+                    hits = concordanceCacheRef.current.get(cacheKey) || [];
+                }
+
+                hits.forEach((hit) => {
+                    allRows.push({
+                        dhlabid: book.dhlabid,
+                        forfatter: book.author || '',
+                        tittel: book.title || '',
+                        år: book.year ?? '',
+                        konk: hit.frag
+                    });
+                });
+                setFullExportProgress({ done: i + 1, total: sortedBooks.length });
+            }
+
+            if (allRows.length > 0) {
+                const sheet = XLSX.utils.json_to_sheet(allRows);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, sheet, 'Konkordanser');
+                const stamp = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(workbook, `stedskonkordans-full-${token || 'sted'}-${stamp}.xlsx`);
+            }
+        } finally {
+            setIsFullExportLoading(false);
+            setFullExportProgress(null);
+        }
+    };
+
+    const toNbLink = (book: PlaceBookDetail) => {
+        const searchText = encodeURIComponent(token || '');
+        if (book.urn) {
+            return `https://www.nb.no/items/${encodeURIComponent(book.urn)}?searchText=${searchText}`;
+        }
+        return `https://www.nb.no/search?searchText=${searchText}`;
+    };
+
     if (!token) return null;
 
     return (
+        <Rnd
+            default={{ x: 760, y: 24, width: 380, height: 600 }}
+            minWidth={320}
+            minHeight={320}
+            dragHandleClassName="summary-header"
+            className="place-summary-rnd"
+            style={{ zIndex: activeWindow === 'summary' ? 2600 : 2000 }}
+            onDragStart={() => setActiveWindow('summary')}
+            onResizeStart={() => setActiveWindow('summary')}
+        >
         <div
             className="place-summary-card glassmorphism"
-            style={{ zIndex: activeWindow === 'summary' ? 2600 : 2000 }}
             onMouseDown={() => setActiveWindow('summary')}
         >
-            <div className="summary-header">
+            <div className="summary-header" onMouseDown={() => setActiveWindow('summary')}>
                 <h3><i className="fas fa-map-marker-alt" style={{color: '#dc2626'}}></i> {token}</h3>
                 <button onClick={onClose}><i className="fas fa-times"></i></button>
             </div>
@@ -269,104 +328,101 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
                             </span>
                         </div>
 
-                        <div className="concordance-section mt-2 mb-3">
-                            <div className="concordance-toolbar">
-                                <button 
-                                    className="btn-op outline w-100" 
-                                    onClick={showConc ? () => setShowConc(false) : fetchConcordance}
-                                    style={{ fontSize: '0.8rem' }}
-                                >
-                                    {showConc ? "Skjul eksempler" : "Se eksempler (Konkordans)"}
-                                </button>
+                        <div className="concordance-toolbar">
+                            <button
+                                className="btn-op outline"
+                                onClick={downloadConcordanceExcel}
+                                style={{ fontSize: '0.8rem' }}
+                                disabled={loadedConcordanceCount === 0}
+                                title={loadedConcordanceCount === 0 ? 'Åpne minst én bok for å hente konkordans først' : 'Last ned Excel'}
+                            >
+                                Last ned Excel
+                            </button>
                                 <button
                                     className="btn-op outline"
-                                    onClick={downloadConcordanceExcel}
+                                    onClick={downloadFullPlaceListExcel}
                                     style={{ fontSize: '0.8rem' }}
-                                    disabled={loadedConcordanceCount === 0}
-                                    title={loadedConcordanceCount === 0 ? 'Åpne minst én bok for å hente konkordans først' : 'Last ned Excel'}
+                                    disabled={sortedBooks.length === 0 || isFullExportLoading}
+                                    title="Henter konkordans for hele boklisten til stedet"
                                 >
-                                    Last ned Excel
+                                    {isFullExportLoading ? 'Lager full Excel...' : 'Last ned full for stedet'}
                                 </button>
-                            </div>
-                            
-                            {showConc && (
-                                <div className="concordance-list mt-2">
-                                    {sortedBooks.length > 0 ? (
-                                        sortedBooks.map((book) => {
-                                            const collapsed = collapsedBooks[book.dhlabid] ?? true;
-                                            const hits = bookConcordances[book.dhlabid] || [];
-                                            const isBookLoading = Boolean(bookConcordanceLoading[book.dhlabid]);
-                                            const authorYear = `${book.author || 'Ukjent'}${book.year ? ` (${book.year})` : ''}`;
-                                            return (
-                                                <div key={book.dhlabid} className="concordance-group">
-                                                    <button
-                                                        type="button"
-                                                        className="concordance-group-header"
-                                                        onClick={() => {
-                                                            const nextCollapsed = !collapsed;
-                                                            setCollapsedBooks((prev) => ({
-                                                                ...prev,
-                                                                [book.dhlabid]: nextCollapsed
-                                                            }));
-                                                            if (!nextCollapsed && !bookConcordances[book.dhlabid] && !bookConcordanceLoading[book.dhlabid]) {
-                                                                fetchBookConcordance(book.dhlabid);
-                                                            }
-                                                        }}
-                                                    >
-                                                        <span className="concordance-group-left">
-                                                            <i className={`fas ${collapsed ? 'fa-chevron-right' : 'fa-chevron-down'}`}></i>
-                                                            <strong>{book.title || `Bok ${book.dhlabid}`}</strong>
-                                                        </span>
-                                                        <span className="concordance-group-right">
-                                                            {book.mentions} forekomster
-                                                            {!collapsed && !isBookLoading ? ` · ${hits.length} eksempler` : ''}
-                                                        </span>
-                                                    </button>
-                                                    {!collapsed && (
-                                                        <div className="concordance-group-body">
-                                                            <div className="concordance-group-meta">{authorYear} · dhlabid {book.dhlabid}</div>
-                                                            {isBookLoading ? (
-                                                                <div className="text-center p-2"><i className="fas fa-spinner fa-spin"></i></div>
-                                                            ) : hits.length > 0 ? (
-                                                                hits.map((hit, i) => (
-                                                                    <div
-                                                                        key={`${book.dhlabid}:${hit.pos}:${i}`}
-                                                                        className="concordance-item"
-                                                                        dangerouslySetInnerHTML={{
-                                                                            __html: hit.frag.replaceAll(token, `<mark>${token}</mark>`)
-                                                                        }}
-                                                                    />
-                                                                ))
-                                                            ) : (
-                                                                <div className="text-muted small">Ingen teksteksempler for denne boka.</div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })
-                                    ) : (
-                                        <div className="text-muted small">Ingen teksteksempler funnet.</div>
-                                    )}
+                        </div>
+                            {isFullExportLoading && fullExportProgress && (
+                                <div className="concordance-group-meta">
+                                    Henter bok {fullExportProgress.done} av {fullExportProgress.total}...
                                 </div>
                             )}
-                        </div>
 
                         <ul className="book-list">
-                            {books.map(b => (
-                                <li key={b.dhlabid} className="book-item">
-                                    <div className="book-meta">
-                                        <span className="book-author">{b.author || 'Ukjent'} ({b.year || '?'})</span>
-                                        <span className="book-mentions">{b.mentions} treff</span>
-                                    </div>
-                                    <div className="book-title">{b.title || 'Uten tittel'}</div>
-                                    {b.category && <div className="book-category">{b.category}</div>}
-                                </li>
-                            ))}
+                            {sortedBooks.map((book) => {
+                                const collapsed = collapsedBooks[book.dhlabid] ?? true;
+                                const hits = bookConcordances[book.dhlabid] || [];
+                                const isBookLoading = Boolean(bookConcordanceLoading[book.dhlabid]);
+                                return (
+                                    <li key={book.dhlabid} className="book-item">
+                                        <button
+                                            type="button"
+                                            className="book-item-toggle"
+                                            onClick={() => {
+                                                const nextCollapsed = !collapsed;
+                                                setCollapsedBooks((prev) => ({
+                                                    ...prev,
+                                                    [book.dhlabid]: nextCollapsed
+                                                }));
+                                                if (!nextCollapsed && !bookConcordances[book.dhlabid] && !bookConcordanceLoading[book.dhlabid]) {
+                                                    fetchBookConcordance(book.dhlabid);
+                                                }
+                                            }}
+                                        >
+                                            <span className="book-item-toggle-left">
+                                                <i className={`fas ${collapsed ? 'fa-chevron-right' : 'fa-chevron-down'}`}></i>
+                                                <span className="book-author">{book.author || 'Ukjent'} ({book.year || '?'})</span>
+                                            </span>
+                                            <span className="book-mentions">
+                                                {book.mentions} treff
+                                                {!collapsed && !isBookLoading ? ` · ${hits.length} eksempler` : ''}
+                                            </span>
+                                        </button>
+
+                                        <a
+                                            className="book-title book-title-link"
+                                            href={toNbLink(book)}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                        >
+                                            {book.title || 'Uten tittel'}
+                                        </a>
+                                        {book.category && <div className="book-category">{book.category}</div>}
+
+                                        {!collapsed && (
+                                            <div className="concordance-group-body">
+                                                <div className="concordance-group-meta">dhlabid {book.dhlabid}</div>
+                                                {isBookLoading ? (
+                                                    <div className="text-center p-2"><i className="fas fa-spinner fa-spin"></i></div>
+                                                ) : hits.length > 0 ? (
+                                                    hits.map((hit, i) => (
+                                                        <div
+                                                            key={`${book.dhlabid}:${hit.pos}:${i}`}
+                                                            className="concordance-item"
+                                                            dangerouslySetInnerHTML={{
+                                                                __html: hit.frag.replaceAll(token, `<mark>${token}</mark>`)
+                                                            }}
+                                                        />
+                                                    ))
+                                                ) : (
+                                                    <div className="text-muted small">Ingen teksteksempler for denne boka.</div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </li>
+                                );
+                            })}
                         </ul>
                     </>
                 )}
             </div>
         </div>
+        </Rnd>
     );
 };
