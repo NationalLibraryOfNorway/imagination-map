@@ -28,6 +28,16 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
   } = useCorpus();
   const [fullPlaces, setFullPlaces] = useState<typeof places | null>(null);
   const [firstYearByToken, setFirstYearByToken] = useState<Map<string, number> | null>(null);
+  const temporalMappingReady = !temporalEnabled || firstYearByToken !== null;
+
+  useEffect(() => {
+    // Defensive cleanup: ensure circle markers from map mode do not linger visually when heatmap is active.
+    map.eachLayer((layer) => {
+      if (layer instanceof L.CircleMarker) {
+        map.removeLayer(layer);
+      }
+    });
+  }, [map]);
 
   useEffect(() => {
     if (!useFullDataset) return;
@@ -75,6 +85,8 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
       return;
     }
 
+    // Avoid rendering with stale year mapping while recomputing.
+    setFirstYearByToken(null);
     let cancelled = false;
     const run = async () => {
       const firstSeen = await fetchFirstYearByTokenForCorpus({
@@ -98,6 +110,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
   }, [temporalEnabled, activeBooksMetadata, API_URL, maxPlacesInView, totalPlaces]);
 
   const points = useMemo<[number, number, number][]>(() => {
+    if (!temporalMappingReady) return [];
     if (sourcePlaces.length === 0) return [];
 
     const temporalPlaces = sourcePlaces.filter((place) => {
@@ -145,7 +158,8 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
     temporalEnabled,
     temporalCutoffYear,
     temporalMode,
-    firstYearByToken
+    firstYearByToken,
+    temporalMappingReady
   ]);
 
   useEffect(() => {

@@ -27,6 +27,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace }) => {
     } = useCorpus();
     const map = useMap();
     const [firstYearByToken, setFirstYearByToken] = useState<Map<string, number> | null>(null);
+    const temporalMappingReady = !temporalEnabled || firstYearByToken !== null;
 
     useEffect(() => {
         if (!temporalEnabled) {
@@ -34,6 +35,8 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace }) => {
             return;
         }
 
+        // Avoid rendering with stale year mapping while recomputing.
+        setFirstYearByToken(null);
         let cancelled = false;
         const run = async () => {
             const firstSeen = await fetchFirstYearByTokenForCorpus({
@@ -58,6 +61,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace }) => {
 
     // Beregn størrelsene iterativt med np.log1p math ekvivalent for React
     const renderedMarkers = useMemo(() => {
+        if (!temporalMappingReady) return [];
         if (places.length === 0) return [];
         const mapPlaces = [...places]
             .sort((a, b) => b.frequency - a.frequency)
@@ -159,9 +163,10 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace }) => {
         temporalCutoffYear,
         temporalMode,
         firstYearByToken
+        , temporalMappingReady
     ]);
 
-    if (isPlacesLoading) {
+    if (isPlacesLoading || !temporalMappingReady) {
         // En elegant måte å vise kart-loading på kan implementeres
         return null;
     }
