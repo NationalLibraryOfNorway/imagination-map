@@ -4,7 +4,7 @@ import { useCorpus } from '../context/CorpusContext';
 import { mixHex } from '../utils/colors';
 
 interface MapMarkersProps {
-    onSelectPlace: (token: string) => void;
+    onSelectPlace: (place: { token: string; placeId?: string }) => void;
 }
 
 const MAP_MARKER_LIMIT = 1800;
@@ -151,7 +151,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace }) => {
                     }}
                     eventHandlers={{
                         click: () => {
-                            onSelectPlace(place.token);
+                            onSelectPlace({ token: place.token, placeId: place.id });
                             map.panTo([place.lat, place.lon]);
                         }
                     }}

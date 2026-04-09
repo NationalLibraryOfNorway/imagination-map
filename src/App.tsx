@@ -17,6 +17,11 @@ import { GeoConcordanceCard } from './components/GeoConcordanceCard'
 import { useCorpus } from './context/CorpusContext'
 import './index.css'
 
+interface SelectedPlace {
+  token: string;
+  placeId?: string;
+}
+
 function App() {
   const {
     setIsBrowseTableOpen,
@@ -34,7 +39,7 @@ function App() {
     activeWindow,
     setActiveWindow
   } = useCorpus();
-  const [selectedPlace, setSelectedPlace] = useState<string | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(null);
   const [isAuthorsInspectorOpen, setIsAuthorsInspectorOpen] = useState(false);
   const [authorsInspectorTab, setAuthorsInspectorTab] = useState<'list' | 'images'>('list');
   const [isPlacesInspectorOpen, setIsPlacesInspectorOpen] = useState(false);
@@ -53,8 +58,8 @@ function App() {
           <HeatmapLayer useFullDataset={mapVisualMode === 'heatmap-all'} />
         ) : (
           <MapMarkers
-            onSelectPlace={(token) => {
-              setSelectedPlace(token);
+            onSelectPlace={(place) => {
+              setSelectedPlace(place);
               setActiveWindow('summary');
             }}
           />
@@ -63,8 +68,8 @@ function App() {
 
       {/* Floating UI Elements */}
       <Omnibox
-        onSelectPlace={(token) => {
-          setSelectedPlace(token);
+        onSelectPlace={(place) => {
+          setSelectedPlace(place);
           setActiveWindow('summary');
         }}
       />
@@ -241,8 +246,8 @@ function App() {
               setIsAuthorsInspectorOpen(false);
               if (activeWindow === 'entityAuthors') setActiveWindow(null);
             }}
-            onSelectPlace={(token) => {
-              setSelectedPlace(token);
+            onSelectPlace={(place) => {
+              setSelectedPlace(place);
               setActiveWindow('summary');
             }}
           />
@@ -257,13 +262,13 @@ function App() {
               setIsPlacesInspectorOpen(false);
               if (activeWindow === 'entityPlaces') setActiveWindow(null);
             }}
-            onSelectPlace={(token) => {
-              setSelectedPlace(token);
+            onSelectPlace={(place) => {
+              setSelectedPlace(place);
               setActiveWindow('summary');
             }}
           />
         )}
-        <PlaceSummaryCard token={selectedPlace} onClose={() => setSelectedPlace(null)} />
+        <PlaceSummaryCard token={selectedPlace?.token || null} placeId={selectedPlace?.placeId} onClose={() => setSelectedPlace(null)} />
       </div>
 
     </div>

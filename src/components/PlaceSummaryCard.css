@@ -73,11 +73,62 @@
 .summary-stats {
     display: flex;
     justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
     padding: 12px 16px;
     background: rgba(241, 245, 249, 0.5);
     font-size: 0.85rem;
     color: #334155;
     border-bottom: 1px solid var(--glass-border);
+}
+
+.concordance-group {
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.74);
+    margin-bottom: 8px;
+}
+
+.concordance-toolbar {
+    display: flex;
+    gap: 8px;
+}
+
+.concordance-group-header {
+    width: 100%;
+    border: none;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    text-align: left;
+    color: #0f172a;
+    font-size: 0.8rem;
+}
+
+.concordance-group-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.concordance-group-right {
+    font-size: 0.75rem;
+    color: #475569;
+}
+
+.concordance-group-body {
+    border-top: 1px solid rgba(226, 232, 240, 0.9);
+    padding: 8px 10px;
+}
+
+.concordance-group-meta {
+    font-size: 0.72rem;
+    color: #64748b;
+    margin-bottom: 6px;
 }
 
 .loading-state {

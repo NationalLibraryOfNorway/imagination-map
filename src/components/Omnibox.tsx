@@ -3,7 +3,7 @@ import { useCorpus } from '../context/CorpusContext';
 import './Omnibox.css';
 
 interface OmniboxProps {
-  onSelectPlace: (token: string) => void;
+  onSelectPlace: (place: { token: string; placeId?: string }) => void;
 }
 
 interface AuthorMatch {
@@ -144,7 +144,7 @@ export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
                   </div>
                   <button
                     onClick={() => {
-                      onSelectPlace(place.token);
+                      onSelectPlace({ token: place.token, placeId: place.id });
                       setIsOpen(false);
                     }}
                   >

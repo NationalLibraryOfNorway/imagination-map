@@ -11,7 +11,7 @@ interface EntityInspectorPanelProps {
   windowKey?: 'entityAuthors' | 'entityPlaces';
   defaultPosition?: { x: number; y: number };
   onClose: () => void;
-  onSelectPlace: (token: string) => void;
+  onSelectPlace: (place: { token: string; placeId?: string }) => void;
 }
 
 interface AuthorStat {
@@ -558,7 +558,7 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
                         className="entity-row-action"
                         onClick={() => {
                           setSelectedKey(place.token);
-                          onSelectPlace(place.token);
+                          onSelectPlace({ token: place.token, placeId: place.id });
                         }}
                       >
                         Vis
@@ -616,7 +616,10 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
           <div className="entity-media-header">
             <strong>{(mode === 'authors' ? imageLookupKey : selectedKey) || 'Velg en rad'}</strong>
             {mode === 'places' && selectedKey && (
-              <button className="entity-action" onClick={() => onSelectPlace(selectedKey)}>
+              <button
+                className="entity-action"
+                onClick={() => onSelectPlace({ token: selectedKey, placeId: placeRows.find((p) => p.token === selectedKey)?.id })}
+              >
                 Vis i kart
               </button>
             )}
