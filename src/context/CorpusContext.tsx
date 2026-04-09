@@ -40,8 +40,10 @@ interface CorpusContextType {
   setIsVisualsOpen: (val: boolean) => void;
   isSettingsOpen: boolean;
   setIsSettingsOpen: (val: boolean) => void;
-  activeWindow: 'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'entityAuthors' | 'entityPlaces' | 'summary' | null;
-  setActiveWindow: (window: 'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'entityAuthors' | 'entityPlaces' | 'summary' | null) => void;
+  isGeoConcordanceOpen: boolean;
+  setIsGeoConcordanceOpen: (val: boolean) => void;
+  activeWindow: 'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'geoConcordance' | 'entityAuthors' | 'entityPlaces' | 'summary' | null;
+  setActiveWindow: (window: 'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'geoConcordance' | 'entityAuthors' | 'entityPlaces' | 'summary' | null) => void;
   // Map properties
   places: PlacePoint[];
   totalPlaces: number;
@@ -75,7 +77,8 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isCorpusBuilderOpen, setIsCorpusBuilderOpen] = useState(false);
   const [isVisualsOpen, setIsVisualsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [activeWindow, setActiveWindow] = useState<'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'entityAuthors' | 'entityPlaces' | 'summary' | null>(null);
+  const [isGeoConcordanceOpen, setIsGeoConcordanceOpen] = useState(false);
+  const [activeWindow, setActiveWindow] = useState<'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'geoConcordance' | 'entityAuthors' | 'entityPlaces' | 'summary' | null>(null);
   
   const [places, setPlaces] = useState<PlacePoint[]>([]);
   const [totalPlaces, setTotalPlaces] = useState<number>(0);
@@ -156,6 +159,8 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setIsVisualsOpen,
       isSettingsOpen,
       setIsSettingsOpen,
+      isGeoConcordanceOpen,
+      setIsGeoConcordanceOpen,
       activeWindow,
       setActiveWindow,
       places,

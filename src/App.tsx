@@ -13,6 +13,7 @@ import { VisualsLauncherChip } from './components/VisualsLauncherChip'
 import { SettingsLauncherChip } from './components/SettingsLauncherChip'
 import { SettingsCard } from './components/SettingsCard'
 import { TemporalCard } from './components/TemporalCard'
+import { GeoConcordanceCard } from './components/GeoConcordanceCard'
 import { useCorpus } from './context/CorpusContext'
 import './index.css'
 
@@ -26,6 +27,8 @@ function App() {
     isVisualsOpen,
     setIsSettingsOpen,
     isSettingsOpen,
+    setIsGeoConcordanceOpen,
+    isGeoConcordanceOpen,
     setMapVisualMode,
     mapVisualMode,
     activeWindow,
@@ -190,6 +193,15 @@ function App() {
             setActiveWindow('entityPlaces');
           }
         }}
+        onPlacesGeoConcordanceClick={() => {
+          if (isGeoConcordanceOpen && activeWindow === 'geoConcordance') {
+            setIsGeoConcordanceOpen(false);
+            setActiveWindow(null);
+          } else {
+            setIsGeoConcordanceOpen(true);
+            setActiveWindow('geoConcordance');
+          }
+        }}
         onYearClick={() => {
           if (isTemporalOpen && activeWindow === 'temporal') {
             setIsTemporalOpen(false);
@@ -204,6 +216,13 @@ function App() {
         <CorpusBuilderCard />
         <VisualsCard />
         <SettingsCard />
+        <GeoConcordanceCard
+          isOpen={isGeoConcordanceOpen}
+          onClose={() => {
+            setIsGeoConcordanceOpen(false);
+            if (activeWindow === 'geoConcordance') setActiveWindow(null);
+          }}
+        />
         <TemporalCard
           isOpen={isTemporalOpen}
           onClose={() => {
