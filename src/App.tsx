@@ -65,6 +65,14 @@ function App() {
     setActiveWindow('bookSequence');
   };
 
+  const exitBookSequenceMode = () => {
+    setIsBookSequenceOpen(false);
+    setSequenceRows([]);
+    setSequenceBookId(null);
+    setSequenceProgressPct(0);
+    if (activeWindow === 'bookSequence') setActiveWindow(null);
+  };
+
   return (
     <div className="app-shell">
       {/* Map layer */}
@@ -241,8 +249,7 @@ function App() {
         }}
         onPlacesBookSequenceClick={() => {
           if (isBookSequenceOpen && activeWindow === 'bookSequence') {
-            setIsBookSequenceOpen(false);
-            setActiveWindow(null);
+            exitBookSequenceMode();
           } else {
             setIsBookSequenceOpen(true);
             setActiveWindow('bookSequence');
@@ -278,10 +285,8 @@ function App() {
         />
         <BookSequenceCard
           isOpen={isBookSequenceOpen}
-          onClose={() => {
-            setIsBookSequenceOpen(false);
-            if (activeWindow === 'bookSequence') setActiveWindow(null);
-          }}
+          onClose={exitBookSequenceMode}
+          onExitMode={exitBookSequenceMode}
           selectedBookId={sequenceBookId}
           onSelectBookId={setSequenceBookId}
           sequenceRows={sequenceRows}

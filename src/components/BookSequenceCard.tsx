@@ -9,6 +9,7 @@ import './BookSequenceCard.css';
 interface BookSequenceCardProps {
   isOpen: boolean;
   onClose: () => void;
+  onExitMode: () => void;
   selectedBookId: number | null;
   onSelectBookId: (bookId: number | null) => void;
   sequenceRows: GeoSequenceRow[];
@@ -28,6 +29,7 @@ interface BookSequenceCardProps {
 export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
   isOpen,
   onClose,
+  onExitMode,
   selectedBookId,
   onSelectBookId,
   sequenceRows,
@@ -78,9 +80,9 @@ export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
     : Math.max(0, Math.floor((Math.max(0, Math.min(100, Math.round(progressPct))) / 100) * sequenceRows.length));
   const { layout, onDragStop, onResizeStop } = useWindowLayout({
     key: 'bookSequence',
-    defaultLayout: { x: 560, y: 24, width: 420, height: 280 },
-    minWidth: 320,
-    minHeight: 220
+    defaultLayout: { x: 560, y: 24, width: 500, height: 560 },
+    minWidth: 340,
+    minHeight: 260
   });
 
   const runSequence = async () => {
@@ -118,8 +120,8 @@ export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
     <Rnd
       size={{ width: layout.width, height: layout.height }}
       position={{ x: layout.x, y: layout.y }}
-      minWidth={320}
-      minHeight={220}
+      minWidth={340}
+      minHeight={260}
       dragHandleClassName="drag-handle"
       className="book-sequence-rnd"
       style={{ zIndex: activeWindow === 'bookSequence' ? 2600 : 1750 }}
@@ -190,6 +192,13 @@ export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
               disabled={sequenceRows.length === 0}
             >
               Nullstill
+            </button>
+            <button
+              className="book-sequence-btn outline"
+              onClick={onExitMode}
+              title="Lukk vinduet og gå tilbake til vanlig korpusvisning"
+            >
+              Avslutt modus
             </button>
           </div>
 
