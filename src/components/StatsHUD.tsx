@@ -3,13 +3,10 @@ import { useCorpus } from '../context/CorpusContext';
 import './StatsHUD.css';
 
 interface StatsHUDProps {
-    onBooksDefaultClick: () => void;
     onBooksCorpusBuilderClick: () => void;
     onBooksTableClick: () => void;
-    onAuthorsDefaultClick: () => void;
     onAuthorsListClick: () => void;
     onAuthorsImagesClick: () => void;
-    onPlacesDefaultClick: () => void;
     onPlacesListClick: () => void;
     onPlacesImagesClick: () => void;
     onPlacesGeoConcordanceClick: () => void;
@@ -18,13 +15,10 @@ interface StatsHUDProps {
 }
 
 export const StatsHUD: React.FC<StatsHUDProps> = ({
-    onBooksDefaultClick,
     onBooksCorpusBuilderClick,
     onBooksTableClick,
-    onAuthorsDefaultClick,
     onAuthorsListClick,
     onAuthorsImagesClick,
-    onPlacesDefaultClick,
     onPlacesListClick,
     onPlacesImagesClick,
     onPlacesGeoConcordanceClick,

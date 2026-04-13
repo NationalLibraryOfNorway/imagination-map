@@ -151,15 +151,6 @@ function App() {
         }}
       />
       <StatsHUD
-        onBooksDefaultClick={() => {
-          if (isBrowseTableOpen && activeWindow === 'browse') {
-            setIsBrowseTableOpen(false);
-            setActiveWindow(null);
-          } else {
-            setIsBrowseTableOpen(true);
-            setActiveWindow('browse');
-          }
-        }}
         onBooksCorpusBuilderClick={() => {
           if (isCorpusBuilderOpen && activeWindow === 'builder') {
             setIsCorpusBuilderOpen(false);
@@ -176,16 +167,6 @@ function App() {
           } else {
             setIsBrowseTableOpen(true);
             setActiveWindow('browse');
-          }
-        }}
-        onAuthorsDefaultClick={() => {
-          if (isAuthorsInspectorOpen && activeWindow === 'entityAuthors' && authorsInspectorTab === 'list') {
-            setIsAuthorsInspectorOpen(false);
-            setActiveWindow(null);
-          } else {
-            setIsAuthorsInspectorOpen(true);
-            setAuthorsInspectorTab('list');
-            setActiveWindow('entityAuthors');
           }
         }}
         onAuthorsListClick={() => {
@@ -206,16 +187,6 @@ function App() {
             setIsAuthorsInspectorOpen(true);
             setAuthorsInspectorTab('images');
             setActiveWindow('entityAuthors');
-          }
-        }}
-        onPlacesDefaultClick={() => {
-          if (isPlacesInspectorOpen && activeWindow === 'entityPlaces' && placesInspectorTab === 'list') {
-            setIsPlacesInspectorOpen(false);
-            setActiveWindow(null);
-          } else {
-            setIsPlacesInspectorOpen(true);
-            setPlacesInspectorTab('list');
-            setActiveWindow('entityPlaces');
           }
         }}
         onPlacesListClick={() => {
