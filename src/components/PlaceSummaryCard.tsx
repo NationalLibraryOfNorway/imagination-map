@@ -95,7 +95,9 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
     const [bookConcordanceLoading, setBookConcordanceLoading] = useState<Record<number, boolean>>({});
     const [isFullExportLoading, setIsFullExportLoading] = useState(false);
     const [fullExportProgress, setFullExportProgress] = useState<{ done: number; total: number } | null>(null);
+    const [isDownloadMenuOpen, setIsDownloadMenuOpen] = useState(false);
     const concordanceCacheRef = useRef<Map<string, ConcordanceHit[]>>(new Map());
+    const downloadMenuRef = useRef<HTMLDivElement | null>(null);
 
     const effectivePlaceId = placeId || (token ? places.find((p) => p.token === token)?.id : undefined);
     const sortedBooks = useMemo(
@@ -120,8 +122,8 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
         });
         return map;
     }, [activeBooksMetadata]);
-    const loadedConcordanceCount = useMemo(
-        () => Object.values(bookConcordances).reduce((sum, rows) => sum + rows.length, 0),
+    const activatedBookCount = useMemo(
+        () => Object.keys(bookConcordances).length,
         [bookConcordances]
     );
     const { layout, onDragStop, onResizeStop } = useWindowLayout({
@@ -244,6 +246,17 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
         };
     }, [token, effectivePlaceId, activeDhlabids, metadataById, API_URL]);
 
+    useEffect(() => {
+        const onPointerDown = (event: MouseEvent) => {
+            if (!downloadMenuRef.current) return;
+            if (!downloadMenuRef.current.contains(event.target as Node)) {
+                setIsDownloadMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', onPointerDown);
+        return () => document.removeEventListener('mousedown', onPointerDown);
+    }, []);
+
     const fetchBookConcordance = async (bookId: number) => {
         if (!token) return;
         const resolveHits = async (): Promise<ConcordanceHit[]> => {
@@ -325,8 +338,41 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
         }
     };
 
-    const downloadConcordanceExcel = () => {
-        const rows = Object.entries(bookConcordances).flatMap(([bookIdRaw, hits]) => {
+    const buildPlaceListRows = () => (
+        sortedBooks.map((book) => ({
+            dhlabid: book.dhlabid,
+            forfatter: book.author || '',
+            tittel: book.title || '',
+            år: book.year ?? '',
+            treff_i_bok: book.mentions
+        }))
+    );
+
+    const downloadPlaceListExcel = () => {
+        const placeListRows = buildPlaceListRows();
+        if (placeListRows.length === 0) return;
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(placeListRows), 'Stedsliste');
+        const stamp = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(workbook, `stedsliste-${token || 'sted'}-${stamp}.xlsx`);
+    };
+
+    const downloadActivatedConcordanceWorkbook = () => {
+        const placeListRows = buildPlaceListRows();
+        const activeBookRows = Object.entries(bookConcordances).map(([bookIdRaw, hits]) => {
+            const bookId = Number(bookIdRaw);
+            const meta = booksById.get(bookId);
+            return {
+                dhlabid: bookId,
+                forfatter: meta?.author || '',
+                tittel: meta?.title || '',
+                år: meta?.year ?? '',
+                antall_eksempler: hits.length
+            };
+        });
+        if (activeBookRows.length === 0) return;
+
+        const concordanceRows = Object.entries(bookConcordances).flatMap(([bookIdRaw, hits]) => {
             const bookId = Number(bookIdRaw);
             const meta = booksById.get(bookId);
             return hits.map((hit) => ({
@@ -337,49 +383,55 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
                 konk: hit.frag
             }));
         });
-        if (rows.length === 0) return;
 
-        const sheet = XLSX.utils.json_to_sheet(rows);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, sheet, 'Konkordanser');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(placeListRows), 'Stedsliste');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(activeBookRows), 'Bokliste_aktivert');
+        if (concordanceRows.length > 0) {
+            XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(concordanceRows), 'Konkordanser');
+        }
         const stamp = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(workbook, `stedskonkordans-${token || 'sted'}-${stamp}.xlsx`);
+        XLSX.writeFile(workbook, `stedskonkordans-aktivert-${token || 'sted'}-${stamp}.xlsx`);
     };
 
-    const downloadFullPlaceListExcel = async () => {
+    const buildAllConcordanceRows = async () => {
+        const allRows: Array<{ dhlabid: number; forfatter: string; tittel: string; år: number | ''; konk: string }> = [];
+        for (let i = 0; i < sortedBooks.length; i += 1) {
+            const book = sortedBooks[i];
+            const cacheKey = `${token}::${effectivePlaceId || ''}::${book.dhlabid}`;
+            let hits = concordanceCacheRef.current.get(cacheKey);
+            if (!hits) {
+                await fetchBookConcordance(book.dhlabid);
+                hits = concordanceCacheRef.current.get(cacheKey) || [];
+            }
+
+            hits.forEach((hit) => {
+                allRows.push({
+                    dhlabid: book.dhlabid,
+                    forfatter: book.author || '',
+                    tittel: book.title || '',
+                    år: book.year ?? '',
+                    konk: hit.frag
+                });
+            });
+            setFullExportProgress({ done: i + 1, total: sortedBooks.length });
+        }
+        return allRows;
+    };
+
+    const downloadFullConcordanceWorkbook = async () => {
         if (!token || sortedBooks.length === 0 || isFullExportLoading) return;
         setIsFullExportLoading(true);
         setFullExportProgress({ done: 0, total: sortedBooks.length });
         try {
-            const allRows: Array<{ dhlabid: number; forfatter: string; tittel: string; år: number | ''; konk: string }> = [];
-            for (let i = 0; i < sortedBooks.length; i += 1) {
-                const book = sortedBooks[i];
-                const cacheKey = `${token}::${effectivePlaceId || ''}::${book.dhlabid}`;
-                let hits = concordanceCacheRef.current.get(cacheKey);
-                if (!hits) {
-                    await fetchBookConcordance(book.dhlabid);
-                    hits = concordanceCacheRef.current.get(cacheKey) || [];
-                }
-
-                hits.forEach((hit) => {
-                    allRows.push({
-                        dhlabid: book.dhlabid,
-                        forfatter: book.author || '',
-                        tittel: book.title || '',
-                        år: book.year ?? '',
-                        konk: hit.frag
-                    });
-                });
-                setFullExportProgress({ done: i + 1, total: sortedBooks.length });
-            }
-
+            const allRows = await buildAllConcordanceRows();
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(buildPlaceListRows()), 'Stedsliste');
             if (allRows.length > 0) {
-                const sheet = XLSX.utils.json_to_sheet(allRows);
-                const workbook = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(workbook, sheet, 'Konkordanser');
-                const stamp = new Date().toISOString().slice(0, 10);
-                XLSX.writeFile(workbook, `stedskonkordans-full-${token || 'sted'}-${stamp}.xlsx`);
+                XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(allRows), 'Konkordanser');
             }
+            const stamp = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(workbook, `stedskonkordans-full-${token || 'sted'}-${stamp}.xlsx`);
         } finally {
             setIsFullExportLoading(false);
             setFullExportProgress(null);
@@ -440,25 +492,58 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
                         </div>
 
                         <div className="concordance-toolbar">
-                            <button
-                                className="btn-op outline"
-                                onClick={downloadConcordanceExcel}
-                                style={{ fontSize: '0.8rem' }}
-                                disabled={loadedConcordanceCount === 0}
-                                title={loadedConcordanceCount === 0 ? 'Åpne minst én bok for å hente konkordans først' : 'Last ned Excel'}
-                            >
-                                Last ned Excel
-                            </button>
+                            <div className="summary-download-menu" ref={downloadMenuRef}>
                                 <button
-                                    className="btn-op outline"
-                                    onClick={downloadFullPlaceListExcel}
+                                    className="btn-op outline summary-download-toggle"
+                                    onClick={() => setIsDownloadMenuOpen((prev) => !prev)}
                                     style={{ fontSize: '0.8rem' }}
                                     disabled={sortedBooks.length === 0 || isFullExportLoading}
-                                    title="Henter konkordans for hele boklisten til stedet"
+                                    title="Velg eksporttype for Excel"
                                 >
-                                    {isFullExportLoading ? 'Lager full Excel...' : 'Last ned full for stedet'}
+                                    {isFullExportLoading ? 'Lager full Excel...' : 'Last ned Excel'}
+                                    <i className="fas fa-chevron-down" style={{ marginLeft: 6 }}></i>
                                 </button>
+                                {isDownloadMenuOpen && !isFullExportLoading && (
+                                    <div className="summary-download-dropdown">
+                                        <button
+                                            type="button"
+                                            className="summary-download-option"
+                                            onClick={() => {
+                                                downloadPlaceListExcel();
+                                                setIsDownloadMenuOpen(false);
+                                            }}
+                                        >
+                                            Stedsliste
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="summary-download-option"
+                                            disabled={activatedBookCount === 0}
+                                            title={activatedBookCount === 0 ? 'Åpne minst én bok for å aktivere konkordans' : ''}
+                                            onClick={() => {
+                                                downloadActivatedConcordanceWorkbook();
+                                                setIsDownloadMenuOpen(false);
+                                            }}
+                                        >
+                                            Stedsliste + aktive konkordanser
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="summary-download-option"
+                                            onClick={async () => {
+                                                setIsDownloadMenuOpen(false);
+                                                await downloadFullConcordanceWorkbook();
+                                            }}
+                                        >
+                                            Stedsliste + alle konkordanser
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
+                            <div className="concordance-group-meta">
+                                Klikk på pilen ved boka for å åpne konkordans (teksteksempler).
+                            </div>
                             {isFullExportLoading && fullExportProgress && (
                                 <div className="concordance-group-meta">
                                     Henter bok {fullExportProgress.done} av {fullExportProgress.total}...

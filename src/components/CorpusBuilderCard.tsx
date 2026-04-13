@@ -169,6 +169,23 @@ export const CorpusBuilderCard: React.FC = () => {
     }
 
     const importCorpus = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const inputEl = e.currentTarget;
+        const normalizeKey = (key: string) =>
+            key
+                .toLowerCase()
+                .normalize('NFKD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]/g, '');
+        const parseIdValue = (value: unknown): number | null => {
+            if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (!trimmed) return null;
+                const asNumber = Number(trimmed);
+                if (Number.isFinite(asNumber)) return Math.trunc(asNumber);
+            }
+            return null;
+        };
         const file = e.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
@@ -176,25 +193,40 @@ export const CorpusBuilderCard: React.FC = () => {
             try {
                 const data = new Uint8Array(e.target?.result as ArrayBuffer);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                const rows = XLSX.utils.sheet_to_json(worksheet);
-                
-                // Ekstraher dhlabid fra array av objekter
-                const ids: number[] = [];
-                for (const row of rows as any[]) {
-                    if (row.dhlabid) {
-                        ids.push(Number(row.dhlabid));
-                    }
-                }
-                
+                const candidateKeys = new Set([
+                    'dhlabid',
+                    'bookid',
+                    'bokid'
+                ]);
+
+                // Scan all sheets, so Geo-konk workbooks can be imported directly.
+                const idsSet = new Set<number>();
+                workbook.SheetNames.forEach((sheetName) => {
+                    const worksheet = workbook.Sheets[sheetName];
+                    if (!worksheet) return;
+                    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: null });
+                    rows.forEach((row) => {
+                        Object.entries(row).forEach(([rawKey, rawValue]) => {
+                            if (!candidateKeys.has(normalizeKey(rawKey))) return;
+                            const id = parseIdValue(rawValue);
+                            if (id !== null) idsSet.add(id);
+                        });
+                    });
+                });
+
+                const ids = Array.from(idsSet);
                 if (ids.length > 0) {
                     applyIdsWithMode(ids);
                 } else {
-                    console.warn("Fant ingen 'dhlabid' kolonne i opplastet Excel fil.");
+                    console.warn("Fant ingen dhlabid/bookId-kolonne i opplastet Excel-fil.");
+                    alert("Fant ingen dhlabid i Excel-filen. Forventet kolonner som dhlabid eller bookId.");
                 }
             } catch (err) {
                 console.error("Invalid Excel corpus", err);
+                alert("Klarte ikke å lese Excel-filen.");
+            } finally {
+                // Allow re-importing the same file without changing filename.
+                inputEl.value = '';
             }
         };
         reader.readAsArrayBuffer(file);

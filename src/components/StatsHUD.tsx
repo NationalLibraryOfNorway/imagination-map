@@ -37,7 +37,7 @@ export const StatsHUD: React.FC<StatsHUDProps> = ({
         places,
         totalPlaces
     } = useCorpus();
-    const [openMenu, setOpenMenu] = useState<'books' | 'authors' | 'places' | null>(null);
+    const [openMenu, setOpenMenu] = useState<'books' | 'authors' | 'places' | 'year' | null>(null);
     const closeTimer = useRef<number | null>(null);
 
     const stats = useMemo(() => {
@@ -64,7 +64,7 @@ export const StatsHUD: React.FC<StatsHUDProps> = ({
         }
     };
 
-    const openMenuNow = (menu: 'books' | 'authors' | 'places') => {
+    const openMenuNow = (menu: 'books' | 'authors' | 'places' | 'year') => {
         cancelClose();
         setOpenMenu(menu);
     };
@@ -87,13 +87,14 @@ export const StatsHUD: React.FC<StatsHUDProps> = ({
                     onMouseEnter={() => openMenuNow('books')}
                     onMouseLeave={scheduleClose}
                 >
-                    <button className="chip chip-button" onClick={onBooksDefaultClick} title="Åpne bokfunksjoner">
+                    <button
+                        className="chip chip-button"
+                        onClick={() => setOpenMenu(openMenu === 'books' ? null : 'books')}
+                        title="Åpne bokfunksjoner"
+                    >
                         <i className="fas fa-book"></i>
                         <span className="chip-text">
                             <span className="chip-value">{stats.books.toLocaleString()}</span> Bøker
-                        </span>
-                        <span className="chip-caret" onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === 'books' ? null : 'books'); }}>
-                            <i className="fas fa-chevron-down"></i>
                         </span>
                     </button>
                     {openMenu === 'books' && (
@@ -112,13 +113,14 @@ export const StatsHUD: React.FC<StatsHUDProps> = ({
                     onMouseEnter={() => openMenuNow('authors')}
                     onMouseLeave={scheduleClose}
                 >
-                    <button className="chip chip-button" onClick={onAuthorsDefaultClick} title="Åpne forfatterfunksjoner">
+                    <button
+                        className="chip chip-button"
+                        onClick={() => setOpenMenu(openMenu === 'authors' ? null : 'authors')}
+                        title="Åpne forfatterfunksjoner"
+                    >
                         <i className="fas fa-user-edit"></i>
                         <span className="chip-text">
                             <span className="chip-value">{stats.authors.toLocaleString()}</span> Forfattere
-                        </span>
-                        <span className="chip-caret" onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === 'authors' ? null : 'authors'); }}>
-                            <i className="fas fa-chevron-down"></i>
                         </span>
                     </button>
                     {openMenu === 'authors' && (
@@ -137,14 +139,15 @@ export const StatsHUD: React.FC<StatsHUDProps> = ({
                     onMouseEnter={() => openMenuNow('places')}
                     onMouseLeave={scheduleClose}
                 >
-                    <button className="chip chip-button" onClick={onPlacesDefaultClick} title="Åpne stedsfunksjoner">
+                    <button
+                        className="chip chip-button"
+                        onClick={() => setOpenMenu(openMenu === 'places' ? null : 'places')}
+                        title="Åpne stedsfunksjoner"
+                    >
                         <i className="fas fa-map-marker-alt"></i>
                         <span className="chip-text">
                             <span className="chip-value">{totalPlaces.toLocaleString()}</span> Steder
                             {totalPlaces > places.length && <span style={{ fontSize: '0.7em', marginLeft: 4, opacity: 0.7 }}>(Vist: {places.length})</span>}
-                        </span>
-                        <span className="chip-caret" onClick={(e) => { e.stopPropagation(); setOpenMenu(openMenu === 'places' ? null : 'places'); }}>
-                            <i className="fas fa-chevron-down"></i>
                         </span>
                     </button>
                     {openMenu === 'places' && (
@@ -165,12 +168,29 @@ export const StatsHUD: React.FC<StatsHUDProps> = ({
                     )}
                 </div>
             </div>
-            <button className="chip chip-button" onClick={onYearClick} title="Åpne tidsfilter">
-                <i className="fas fa-calendar-alt"></i>
-                <span className="chip-text">
-                    {stats.yearString}
-                </span>
-            </button>
+            <div
+                className="chip-menu-wrapper"
+                onMouseEnter={() => openMenuNow('year')}
+                onMouseLeave={scheduleClose}
+            >
+                <button
+                    className="chip chip-button"
+                    onClick={() => setOpenMenu(openMenu === 'year' ? null : 'year')}
+                    title="Åpne tidsvalg"
+                >
+                    <i className="fas fa-calendar-alt"></i>
+                    <span className="chip-text">
+                        {stats.yearString}
+                    </span>
+                </button>
+                {openMenu === 'year' && (
+                    <div className="chip-menu" onMouseEnter={cancelClose} onMouseLeave={scheduleClose}>
+                        <button type="button" onClick={() => { onYearClick(); setOpenMenu(null); }}>
+                            <i className="fas fa-clock"></i> Tidsvisning
+                        </button>
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

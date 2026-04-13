@@ -91,6 +91,22 @@ function parseQueryGroups(input: string): { groups: string[][]; flatTerms: strin
   return { groups: filtered, flatTerms, hasExplicitGroups };
 }
 
+function escapeSearchTerm(value: string): string {
+  return value.replace(/"/g, '\\"').trim();
+}
+
+function buildNbNearSearchText(surface: string, terms: string[], proximity: number): string {
+  const cleanSurface = escapeSearchTerm(surface);
+  const cleanTerms = Array.from(new Set(terms.map(escapeSearchTerm).filter(Boolean)));
+  if (!cleanSurface) return cleanTerms.join(' OR ');
+  if (cleanTerms.length === 0) return `"${cleanSurface}"`;
+  const phrases = cleanTerms.flatMap((term) => ([
+    `"${cleanSurface} + ${term}"~${proximity}`,
+    `"${term} + ${cleanSurface}"~${proximity}`
+  ]));
+  return Array.from(new Set(phrases)).join(' OR ');
+}
+
 export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
   isOpen,
   onClose,
@@ -98,10 +114,10 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
   onClearMapFocus,
   mapFocusAppliedCount
 }) => {
-  const { activeDhlabids, API_URL, activeWindow, setActiveWindow } = useCorpus();
+  const { activeDhlabids, activeBooksMetadata, API_URL, activeWindow, setActiveWindow } = useCorpus();
   const [query, setQuery] = useState('');
   const [proximity, setProximity] = useState(8);
-  const [perBookLimit, setPerBookLimit] = useState(2);
+  const [perBookLimit, setPerBookLimit] = useState(10);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastElapsedMs, setLastElapsedMs] = useState<number | null>(null);
@@ -127,6 +143,19 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     });
     return map;
   }, [rendered]);
+  const metadataById = useMemo(() => {
+    const map = new Map<number, { urn: string; title: string | null; author: string | null; year: number | null; category: string | null }>();
+    activeBooksMetadata.forEach((book) => {
+      map.set(book.dhlabid, {
+        urn: book.urn,
+        title: book.title,
+        author: book.author,
+        year: book.year,
+        category: book.category
+      });
+    });
+    return map;
+  }, [activeBooksMetadata]);
 
   const grouped = useMemo(() => {
     const byKey = new Map<string, GroupedConcordance>();
@@ -199,6 +228,34 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     return Array.from(ids);
   }, [rows]);
   const highlightTerms = useMemo(() => parseQueryGroups(query).flatTerms, [query]);
+  const queryTermsForNb = useMemo(
+    () => Array.from(new Set(parseQueryGroups(query).flatTerms.filter(Boolean))),
+    [query]
+  );
+
+  const toNbSearchLink = (bookId: number, surface: string) => {
+    const searchText = buildNbNearSearchText(surface, queryTermsForNb, proximity);
+    const meta = metadataById.get(bookId);
+    if (meta?.urn) {
+      return `https://www.nb.no/items/${encodeURIComponent(meta.urn)}?searchText=${encodeURIComponent(searchText)}`;
+    }
+    return `https://www.nb.no/search?searchText=${encodeURIComponent(searchText)}`;
+  };
+
+  const buildSnippetTooltip = (row: GeoRow, surface: string) => {
+    const meta = metadataById.get(row.bookId);
+    const bits = [
+      `dhlabid: ${row.bookId}`,
+      `pos: ${row.pos}`,
+      `sted: ${surface || row.placeKey || 'ukjent'}`,
+      `steds-id: ${formatPlaceId(row) || 'ukjent'}`,
+      `forfatter: ${meta?.author || 'ukjent'}`,
+      `tittel: ${meta?.title || 'ukjent'}`,
+      `år: ${meta?.year ?? 'ukjent'}`
+    ];
+    if (meta?.category) bits.push(`kategori: ${meta.category}`);
+    return bits.join('\n');
+  };
 
   const executeNearQuery = async (termGroups: string[][], mode: 'count' | 'hits' | 'render'): Promise<NearQueryResult> => {
     try {
@@ -274,7 +331,12 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
 
   const runQuery = async () => {
     const queryStart = performance.now();
-    const { flatTerms } = parseQueryGroups(query);
+    const trimmedQuery = query.trim();
+    if (!trimmedQuery) {
+      setError('Skriv inn minst ett søkeord før du kjører geo-konkordans.');
+      return;
+    }
+    const { flatTerms } = parseQueryGroups(trimmedQuery);
     const queryTerms = Array.from(new Set(flatTerms.map((t) => t.toLowerCase()).filter(Boolean)));
     const mainTermGroups = queryTerms.length > 0
       ? [['#geo'], queryTerms]
@@ -423,7 +485,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
               placeholder="Kommaseparerte grupper: oslo, london paris, england"
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') runQuery();
+                if (e.key === 'Enter' && query.trim()) runQuery();
               }}
             />
             <label className="geo-conc-proximity">
@@ -445,7 +507,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
               <span>Treff/bok</span>
               <select
                 value={perBookLimit}
-                onChange={(e) => setPerBookLimit(Number(e.target.value) || 2)}
+                onChange={(e) => setPerBookLimit(Number(e.target.value) || 10)}
                 disabled={isLoading}
               >
                 <option value={1}>1</option>
@@ -457,7 +519,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
                 <option value={15}>15</option>
               </select>
             </label>
-            <button type="button" onClick={runQuery} disabled={isLoading || activeDhlabids.length === 0}>
+            <button type="button" onClick={runQuery} disabled={isLoading || activeDhlabids.length === 0 || !query.trim()}>
               {isLoading ? 'Laster...' : 'Søk'}
             </button>
             <button
@@ -571,6 +633,8 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
                   <div className="geo-conc-snippets">
                     {group.rows.map(({ row, frag }) => {
                       const fragment = frag || '';
+                      const placeSurface = extractPlaceFromFrag(fragment) || row.surfaceText || group.label || '';
+                      const hoverTitle = buildSnippetTooltip(row, placeSurface);
                       const withTerm = highlightTerms.length > 0
                         ? highlightTerms.reduce((acc, token) => {
                             if (!token) return acc;
@@ -579,9 +643,31 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
                         : fragment;
                       const html = highlightGeoBracket(withTerm);
                       return (
-                        <article key={`${row.bookId}:${row.pos}`} className="geo-conc-snippet">
-                          <div className="geo-conc-meta">bok {row.bookId} · pos {row.pos}</div>
-                          <div dangerouslySetInnerHTML={{ __html: html || '(ingen snippet)' }} />
+                        <article
+                          key={`${row.bookId}:${row.pos}`}
+                          className="geo-conc-snippet"
+                          data-tooltip={hoverTitle}
+                        >
+                          <div className="geo-conc-meta">
+                            bok {row.bookId} · pos {row.pos}
+                            {placeSurface && (
+                              <>
+                                {' · '}
+                                <a
+                                  className="geo-conc-nb-link"
+                                  href={toNbSearchLink(row.bookId, placeSurface)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  Søk i Nettbiblioteket
+                                </a>
+                              </>
+                            )}
+                          </div>
+                          <div
+                            className="geo-conc-snippet-body"
+                            dangerouslySetInnerHTML={{ __html: html || '(ingen snippet)' }}
+                          />
                         </article>
                       );
                     })}

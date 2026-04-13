@@ -236,6 +236,28 @@
 .geo-conc-snippet {
   font-size: 0.79rem;
   color: #0f172a;
+  position: relative;
+}
+
+.geo-conc-snippet[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 80;
+  max-width: min(560px, 82vw);
+  white-space: pre-wrap;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
 }
 
 .geo-conc-snippet mark {
@@ -252,6 +274,12 @@
   font-size: 0.72rem;
   color: #64748b;
   margin-bottom: 3px;
+}
+
+.geo-conc-nb-link {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 
