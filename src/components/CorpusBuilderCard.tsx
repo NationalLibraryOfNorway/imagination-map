@@ -19,14 +19,14 @@ export const CorpusBuilderCard: React.FC = () => {
         setActiveWindow,
         API_URL
     } = useCorpus();
-    const [operationMode, setOperationMode] = useState<'add'|'intersect'|'remove'>('add');
-    
     // Form states
     const [yearRange, setYearRange] = useState<[number, number]>([1814, 1905]);
     const [selectedCategories, setSelectedCategories] = useState<{label: string, value: string}[]>([]);
     const [selectedAuthors, setSelectedAuthors] = useState<{label: string, value: string}[]>([]);
     const [selectedTitles, setSelectedTitles] = useState<{label: string, value: string}[]>([]);
     const [keywords, setKeywords] = useState<string>('');
+    const [contentOperator, setContentOperator] = useState<'AND' | 'OR'>('OR');
+    const [operationMode, setOperationMode] = useState<'add' | 'intersect' | 'remove'>('add');
     const [isKeywordSearching, setIsKeywordSearching] = useState(false);
     const { layout, onDragStop, onResizeStop } = useWindowLayout({
         key: 'builder',
@@ -71,94 +71,96 @@ export const CorpusBuilderCard: React.FC = () => {
         };
     }, [allBooks, yearRange, selectedCategories, selectedAuthors, selectedTitles]);
 
-    const handleUpdate = () => {
-        // Filter allBooks locally based on current dropdowns & slider
-        let filtered = allBooks.filter(b => {
-            if (b.year === null) return false;
-            if (b.year < yearRange[0] || b.year > yearRange[1]) return false;
-            
-            if (selectedCategories.length > 0) {
-                if (!b.category || !selectedCategories.map(c => c.value).includes(b.category)) return false;
-            }
-            if (selectedAuthors.length > 0) {
-                if (!b.author || !selectedAuthors.map(a => a.value).includes(b.author)) return false;
-            }
-            if (selectedTitles.length > 0) {
-                if (!b.title || !selectedTitles.map(t => t.value).includes(b.title)) return false;
-            }
-            return true;
-        });
+    const runBackendCorpusBuild = async (): Promise<number[] | null> => {
+        const terms = keywords.split(',').map((k) => k.trim()).filter(Boolean);
 
-        applyIdsWithMode(filtered.map(b => b.dhlabid));
-    };
-
-    const handleKeywordSearch = async () => {
-        if (!keywords.trim()) return;
-        
         setIsKeywordSearching(true);
         try {
-            const terms = keywords.split(',').map(k => k.trim()).filter(Boolean);
-            if (terms.length === 0) return;
+            const filters: Record<string, unknown> = {
+                yearRange: [yearRange[0], yearRange[1]]
+            };
+            const categories = selectedCategories.map((c) => c.value);
+            const authors = selectedAuthors.map((a) => a.value);
+            const titles = selectedTitles.map((t) => t.value);
 
-            const responses = await Promise.all(
-                terms.map((term) =>
-                    fetch(`${API_URL}/concordance`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            wordA: term,
-                            window: 5,
-                            before: 5,
-                            after: 5,
-                            perBook: 20,
-                            totalLimit: 5000
-                        })
-                    })
-                )
-            );
-            const failed = responses.find((res) => !res.ok);
-            if (failed) throw new Error("Keyword search failed");
+            if (categories.length === 1) filters.category = categories[0];
+            if (categories.length > 1) filters.categories = categories;
+            if (authors.length === 1) filters.author = authors[0];
+            if (authors.length > 1) filters.authors = authors;
+            if (titles.length === 1) filters.title = titles[0];
+            if (titles.length > 1) filters.titles = titles;
 
-            const datasets = await Promise.all(responses.map((res) => res.json()));
+            const payload: Record<string, unknown> = { filters };
+            if (terms.length > 0) {
+                payload.contentKeywords = terms;
+                payload.contentOperator = contentOperator;
+            }
+            if (activeDhlabids.length > 0) {
+                payload.baseCorpus = activeDhlabids;
+            }
+
+            const response = await fetch(`${API_URL}/api/corpus/build`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error("Corpus build content filter failed");
+
+            const data = await response.json();
+            const candidates: unknown[] = Array.isArray(data?.dhlabids)
+                ? data.dhlabids
+                : Array.isArray(data?.corpus)
+                    ? data.corpus
+                    : Array.isArray(data?.ids)
+                        ? data.ids
+                        : Array.isArray(data?.bookIds)
+                            ? data.bookIds
+                            : [];
+            const bookObjectIds = Array.isArray(data?.books)
+                ? data.books.map((row: any) => row?.dhlabid ?? row?.bookId ?? row?.id)
+                : [];
             const foundIds = Array.from(
                 new Set(
-                    datasets
-                        .flatMap((data: any) => data.rows || [])
-                        .map((row: any) => row.bookId)
-                        .filter((id: any) => typeof id === 'number')
+                    [...candidates, ...bookObjectIds]
+                        .map((id) => Number(id))
+                        .filter((id) => Number.isFinite(id))
                 )
             ) as number[];
 
-            if (foundIds.length === 0) {
-                alert("Ingen treff på disse nøkkelordene.");
-            } else {
-                applyIdsWithMode(foundIds);
-            }
+            return foundIds;
         } catch (err) {
             console.error(err);
             alert("Feil ved søk i innhold. Sjekk tilkoblingen til API.");
+            return null;
         } finally {
             setIsKeywordSearching(false);
         }
     };
 
+    const handleApplyFilters = async () => {
+        const foundIds = await runBackendCorpusBuild();
+        if (!foundIds) return;
+        if (foundIds.length === 0) {
+            alert("Ingen treff for valgte filtre.");
+        }
+        applyIdsWithMode(foundIds);
+    };
+
     const applyIdsWithMode = (incomingIds: number[]) => {
         if (operationMode === 'add') {
-            if (activeDhlabids.length === 0) {
-                setActiveDhlabids(incomingIds);
-            } else {
-                const added = new Set([...activeDhlabids, ...incomingIds]);
-                setActiveDhlabids(Array.from(added));
-            }
-        } else if (operationMode === 'intersect') {
-            const currentSet = new Set(activeDhlabids);
-            const intersected = incomingIds.filter(id => currentSet.has(id));
-            setActiveDhlabids(Array.from(intersected));
-        } else if (operationMode === 'remove') {
-            const removeSet = new Set(incomingIds);
-            const remaining = activeDhlabids.filter(id => !removeSet.has(id));
-            setActiveDhlabids(remaining);
+            const added = new Set([...activeDhlabids, ...incomingIds]);
+            setActiveDhlabids(Array.from(added));
+            return;
         }
+        if (operationMode === 'intersect') {
+            const currentSet = new Set(activeDhlabids);
+            const intersected = incomingIds.filter((id) => currentSet.has(id));
+            setActiveDhlabids(intersected);
+            return;
+        }
+        const removeSet = new Set(incomingIds);
+        const remaining = activeDhlabids.filter((id) => !removeSet.has(id));
+        setActiveDhlabids(remaining);
     };
 
     const handleClear = () => {
@@ -216,7 +218,7 @@ export const CorpusBuilderCard: React.FC = () => {
 
                 const ids = Array.from(idsSet);
                 if (ids.length > 0) {
-                    applyIdsWithMode(ids);
+                    setActiveDhlabids(ids);
                 } else {
                     console.warn("Fant ingen dhlabid/bookId-kolonne i opplastet Excel-fil.");
                     alert("Fant ingen dhlabid i Excel-filen. Forventet kolonner som dhlabid eller bookId.");
@@ -275,7 +277,7 @@ export const CorpusBuilderCard: React.FC = () => {
                             <Slider 
                                 range 
                                 min={1800} 
-                                max={2025} 
+                                max={1905} 
                                 value={yearRange} 
                                 onChange={(val) => setYearRange(val as [number, number])} 
                                 trackStyle={[{ backgroundColor: '#4B6CB7' }]}
@@ -315,38 +317,65 @@ export const CorpusBuilderCard: React.FC = () => {
                         />
                     </div>
 
-                    <div className="action-row mt-3">
-                        <div className="btn-group">
-                            <button className={`btn-op outline ${operationMode === 'add' ? 'active' : ''}`} onClick={() => setOperationMode('add')} title="Start / Legg til">+</button>
-                            <button className={`btn-op outline ${operationMode === 'intersect' ? 'active' : ''}`} onClick={() => setOperationMode('intersect')} title="Behold kun de som overlapper">&#38;</button>
-                            <button className={`btn-op outline ${operationMode === 'remove' ? 'active' : ''}`} onClick={() => setOperationMode('remove')} title="Fjern fra aktivt korpus">-</button>
-                        </div>
-                        <button className="btn-primary flex-grow-1" onClick={handleUpdate}>
-                            <i className="fas fa-sync-alt me-2"></i> Filter
-                        </button>
-                    </div>
-
                     <div className="form-group mt-3">
                         <label>Innholdsfilter (Nøkkelord)</label>
-                        <div className="d-flex gap-2">
+                        <div className="content-filter-row">
+                            <div className="btn-group" role="group" aria-label="Innholdsoperator">
+                                <button
+                                    type="button"
+                                    className={`btn-op outline ${contentOperator === 'AND' ? 'active' : ''}`}
+                                    onClick={() => setContentOperator('AND')}
+                                    title="Alle ord må finnes"
+                                >
+                                    AND
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`btn-op outline ${contentOperator === 'OR' ? 'active' : ''}`}
+                                    onClick={() => setContentOperator('OR')}
+                                    title="Minst ett ord må finnes"
+                                >
+                                    OR
+                                </button>
+                            </div>
                             <input 
                                 type="text" 
                                 className="form-control" 
                                 placeholder="f.eks krig, fred" 
                                 value={keywords}
                                 onChange={(e) => setKeywords(e.target.value)}
-                                onKeyPress={(e) => e.key === 'Enter' && handleKeywordSearch()}
+                                onKeyPress={(e) => e.key === 'Enter' && handleApplyFilters()}
                             />
-                            <button 
-                                className="btn-primary" 
-                                style={{ padding: '4px 12px' }} 
-                                onClick={handleKeywordSearch}
-                                disabled={isKeywordSearching}
-                            >
-                                {isKeywordSearching ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-search"></i>}
-                            </button>
                         </div>
-                        <small className="text-muted" style={{ fontSize: '0.7rem' }}>Søker i fulltekst via concordance-endepunktet</small>
+                    </div>
+
+                    <div className="action-row mt-3">
+                        <div className="btn-group">
+                            <button className={`btn-op outline ${operationMode === 'add' ? 'active' : ''}`} onClick={() => setOperationMode('add')} title="Legg til treff i aktivt korpus">+</button>
+                            <button className={`btn-op outline ${operationMode === 'intersect' ? 'active' : ''}`} onClick={() => setOperationMode('intersect')} title="Behold kun overlap mellom aktivt korpus og treff">&#38;</button>
+                            <button className={`btn-op outline ${operationMode === 'remove' ? 'active' : ''}`} onClick={() => setOperationMode('remove')} title="Fjern treff fra aktivt korpus">-</button>
+                        </div>
+                        <button
+                            className="btn-primary flex-grow-1"
+                            onClick={handleApplyFilters}
+                            disabled={isKeywordSearching}
+                            title="Kjør metadata + ev. innholdsord i ett backend-kall"
+                        >
+                            {isKeywordSearching ? (
+                                <>
+                                    <i className="fas fa-sync-alt fa-spin me-2"></i> Søker...
+                                </>
+                            ) : (
+                                <>
+                                    <i className="fas fa-sync-alt me-2"></i> Filter
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    <div className="form-group mt-2">
+                        <small className="text-muted" style={{ fontSize: '0.7rem' }}>
+                            Filter bruker /api/corpus/build ({contentOperator}) og anvender resultat med valgt modus (+ / & / -).
+                        </small>
                     </div>
 
                     <div className="action-row mt-3 pt-3" style={{ borderTop: '1px solid var(--glass-border)' }}>

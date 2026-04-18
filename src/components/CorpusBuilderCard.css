@@ -143,6 +143,17 @@
 .btn-group {
     display: flex;
 }
+.content-filter-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.content-filter-row .btn-group {
+    flex-shrink: 0;
+}
+.content-filter-row .form-control {
+    flex: 1;
+}
 .btn-op {
     background: white;
     border: 1px solid #cbd5e1;
@@ -191,3 +202,12 @@
 .me-2 { margin-right: 0.5rem; }
 .ms-1 { margin-left: 0.25rem; }
 .opacity-50 { opacity: 0.5; }
+
+@media (max-width: 520px) {
+    .content-filter-row {
+        flex-wrap: wrap;
+    }
+    .content-filter-row .form-control {
+        min-width: 100%;
+    }
+}
