@@ -22,13 +22,26 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
     downlightPercentile,
     downlightColorMode,
     lowFreqGreenStrength,
+    heatmapStrength,
     temporalEnabled,
     temporalCutoffYear,
-    temporalMode
+    temporalMode,
+    compareSegmentsEnabled,
+    segmentABookIds,
+    segmentBBookIds
   } = useCorpus();
   const [fullPlaces, setFullPlaces] = useState<typeof places | null>(null);
+  const [comparePlaces, setComparePlaces] = useState<{ A: typeof places; B: typeof places } | null>(null);
   const [firstYearByToken, setFirstYearByToken] = useState<Map<string, number> | null>(null);
   const temporalMappingReady = !temporalEnabled || firstYearByToken !== null;
+  const compareReady = compareSegmentsEnabled && segmentABookIds.length > 0 && segmentBBookIds.length > 0;
+  const heatStrength = Math.max(0.5, Math.min(3, heatmapStrength / 100));
+  const boostIntensity = (value: number): number => {
+    const i = Math.max(0, Math.min(1, value));
+    if (heatStrength === 1) return i;
+    if (heatStrength > 1) return 1 - Math.pow(1 - i, heatStrength);
+    return Math.pow(i, 1 / heatStrength);
+  };
 
   useEffect(() => {
     // Defensive cleanup: ensure circle markers from map mode do not linger visually when heatmap is active.
@@ -38,6 +51,43 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
       }
     });
   }, [map]);
+
+  useEffect(() => {
+    if (!compareReady) {
+      setComparePlaces(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchPlacesForSegment = async (ids: number[]) => {
+      const res = await fetch(`${API_URL}/api/places`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dhlabids: ids,
+          maxPlaces: maxPlacesInView
+        })
+      });
+      if (!res.ok) throw new Error('Failed to fetch segment places for heatmap compare');
+      const data = await res.json();
+      return data.places || [];
+    };
+    const run = async () => {
+      const [placesA, placesB] = await Promise.all([
+        fetchPlacesForSegment(segmentABookIds),
+        fetchPlacesForSegment(segmentBBookIds)
+      ]);
+      if (cancelled) return;
+      setComparePlaces({ A: placesA, B: placesB });
+    };
+    run().catch((err) => {
+      if (cancelled) return;
+      console.error(err);
+      setComparePlaces(null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [compareReady, segmentABookIds, segmentBBookIds, API_URL, maxPlacesInView]);
 
   useEffect(() => {
     if (!useFullDataset) return;
@@ -109,11 +159,13 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
     };
   }, [temporalEnabled, activeBooksMetadata, API_URL, maxPlacesInView, totalPlaces]);
 
-  const points = useMemo<[number, number, number][]>(() => {
+  const toHeatPoints = (inputPlaces: typeof places, opts?: { ignoreTemporal?: boolean }): [number, number, number][] => {
     if (!temporalMappingReady) return [];
-    if (sourcePlaces.length === 0) return [];
+    if (inputPlaces.length === 0) return [];
+    const ignoreTemporal = opts?.ignoreTemporal === true;
 
-    const temporalPlaces = sourcePlaces.filter((place) => {
+    const temporalPlaces = inputPlaces.filter((place) => {
+      if (ignoreTemporal) return true;
       if (!temporalEnabled || temporalCutoffYear === null) return true;
       const firstYear = firstYearByToken?.get(place.token);
       const isAfterOnly = typeof firstYear === 'number' && firstYear >= temporalCutoffYear;
@@ -141,6 +193,10 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
           ? (Math.log1p(place.frequency) - logMin) / (logMax - logMin)
           : 0.35;
         const firstYear = firstYearByToken?.get(place.token);
+        if (ignoreTemporal) {
+          const intensity = boostIntensity(0.2 + norm * 0.8);
+          return [place.lat, place.lon, intensity];
+        }
         const isAfterOnly = temporalEnabled
           && temporalCutoffYear !== null
           && typeof firstYear === 'number'
@@ -149,9 +205,13 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
           && temporalCutoffYear !== null
           && typeof firstYear !== 'number';
         const temporalFactor = temporalEnabled && temporalMode === 'color' && (isAfterOnly || isUnknown) ? 0.18 : 1;
-        const intensity = (0.2 + norm * 0.8) * temporalFactor;
+        const intensity = boostIntensity((0.2 + norm * 0.8) * temporalFactor);
         return [place.lat, place.lon, intensity];
       });
+  };
+
+  const points = useMemo<[number, number, number][]>(() => {
+    return toHeatPoints(sourcePlaces);
   }, [
     sourcePlaces,
     downlightPercentile,
@@ -162,7 +222,51 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
     temporalMappingReady
   ]);
 
+  const comparePointsA = useMemo<[number, number, number][]>(() => {
+    if (!compareReady || !comparePlaces) return [];
+    return toHeatPoints(comparePlaces.A, { ignoreTemporal: true });
+  }, [compareReady, comparePlaces, downlightPercentile, temporalEnabled, temporalCutoffYear, temporalMode, firstYearByToken, temporalMappingReady]);
+
+  const comparePointsB = useMemo<[number, number, number][]>(() => {
+    if (!compareReady || !comparePlaces) return [];
+    return toHeatPoints(comparePlaces.B, { ignoreTemporal: true });
+  }, [compareReady, comparePlaces, downlightPercentile, temporalEnabled, temporalCutoffYear, temporalMode, firstYearByToken, temporalMappingReady]);
+
   useEffect(() => {
+    if (compareReady) {
+      if (comparePointsA.length === 0 && comparePointsB.length === 0) return;
+      const gradientA = {
+        0.2: 'rgba(219, 234, 254, 0.24)',
+        0.55: 'rgba(96, 165, 250, 0.56)',
+        1.0: 'rgba(30, 58, 138, 0.82)'
+      };
+      const gradientB = {
+        0.2: 'rgba(254, 226, 226, 0.18)',
+        0.55: 'rgba(248, 113, 113, 0.42)',
+        1.0: 'rgba(153, 27, 27, 0.72)'
+      };
+      const heatLayerA = (L as any).heatLayer(comparePointsA, {
+        radius: Math.round(16 + 12 * heatStrength),
+        blur: Math.round(14 + 8 * heatStrength),
+        maxZoom: 9,
+        minOpacity: Math.min(0.45, 0.1 + 0.08 * heatStrength),
+        gradient: gradientA
+      });
+      const heatLayerB = (L as any).heatLayer(comparePointsB, {
+        radius: Math.round(16 + 12 * heatStrength),
+        blur: Math.round(14 + 8 * heatStrength),
+        maxZoom: 9,
+        minOpacity: Math.min(0.45, 0.12 + 0.09 * heatStrength),
+        gradient: gradientB
+      });
+      heatLayerA.addTo(map);
+      heatLayerB.addTo(map);
+      return () => {
+        map.removeLayer(heatLayerA);
+        map.removeLayer(heatLayerB);
+      };
+    }
+
     if (points.length === 0) return;
 
     const greenRatio = lowFreqGreenStrength / 100;
@@ -179,10 +283,10 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
     };
 
     const heatLayer = (L as any).heatLayer(points, {
-      radius: 28,
-      blur: 22,
+      radius: Math.round(16 + 12 * heatStrength),
+      blur: Math.round(14 + 8 * heatStrength),
       maxZoom: 9,
-      minOpacity: 0.26,
+      minOpacity: Math.min(0.5, 0.16 + 0.1 * heatStrength),
       gradient
     });
 
@@ -190,7 +294,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
     return () => {
       map.removeLayer(heatLayer);
     };
-  }, [map, points, downlightColorMode, lowFreqGreenStrength]);
+  }, [map, points, downlightColorMode, lowFreqGreenStrength, compareReady, comparePointsA, comparePointsB, heatStrength]);
 
   return null;
 };

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Rnd } from 'react-rnd';
 import { useCorpus, type BookMetadata } from '../context/CorpusContext';
 import { downloadCsv } from '../utils/download';
@@ -12,7 +12,16 @@ interface CorpusBrowseTableProps {
 }
 
 export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBookSequence }) => {
-    const { activeBooksMetadata, isBrowseTableOpen, setIsBrowseTableOpen, activeWindow, setActiveWindow } = useCorpus();
+    const {
+        activeBooksMetadata,
+        isBrowseTableOpen,
+        setIsBrowseTableOpen,
+        activeWindow,
+        setActiveWindow,
+        bookSegmentAssignments,
+        setBookSegmentAssignment,
+        clearBookSegmentAssignments
+    } = useCorpus();
     const [sortKey, setSortKey] = useState<SortKey>('author');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const { layout, onDragStop, onResizeStop } = useWindowLayout({
@@ -70,6 +79,25 @@ export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBook
         });
     }, [activeBooksMetadata, sortKey, sortOrder]);
 
+    useEffect(() => {
+        const available = new Set(activeBooksMetadata.map((book) => book.dhlabid));
+        Object.keys(bookSegmentAssignments).forEach((rawId) => {
+            const id = Number(rawId);
+            if (!Number.isFinite(id) || !available.has(id)) {
+                setBookSegmentAssignment(id, 'none');
+            }
+        });
+    }, [activeBooksMetadata, bookSegmentAssignments, setBookSegmentAssignment]);
+
+    const aCount = useMemo(
+        () => sortedBooks.filter((book) => bookSegmentAssignments[book.dhlabid] === 'A').length,
+        [sortedBooks, bookSegmentAssignments]
+    );
+    const bCount = useMemo(
+        () => sortedBooks.filter((book) => bookSegmentAssignments[book.dhlabid] === 'B').length,
+        [sortedBooks, bookSegmentAssignments]
+    );
+
     if (!isBrowseTableOpen) return null;
 
     const renderHeader = (label: string, key: SortKey) => (
@@ -109,10 +137,19 @@ export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBook
                 </div>
 
                 <div className="table-body no-drag">
+                    <div className="table-selection-toolbar">
+                        <small className="text-muted">A: {aCount} | B: {bCount}</small>
+                        <div className="table-selection-actions">
+                            <button className="btn-text" type="button" onClick={clearBookSegmentAssignments}>
+                                Nullstill A/B
+                            </button>
+                        </div>
+                    </div>
                     <div className="table-container">
                         <table>
                             <thead>
                                 <tr>
+                                    <th className="segment-column">Seg</th>
                                     {renderHeader('URN', 'urn')}
                                     {renderHeader('Forfatter', 'author')}
                                     {renderHeader('År', 'year')}
@@ -125,7 +162,35 @@ export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBook
                             </thead>
                             <tbody>
                                 {sortedBooks.map(b => (
-                                    <tr key={b.dhlabid}>
+                                    <tr key={b.dhlabid} className={`segment-${bookSegmentAssignments[b.dhlabid] || 'none'}`}>
+                                        <td className="segment-column">
+                                            <div className="segment-toggle-group" role="group" aria-label={`Segment for ${b.title || b.dhlabid}`}>
+                                                <button
+                                                    type="button"
+                                                    className={`segment-toggle none ${!bookSegmentAssignments[b.dhlabid] ? 'active' : ''}`}
+                                                    onClick={() => setBookSegmentAssignment(b.dhlabid, 'none')}
+                                                    title="Ikke i noe segment"
+                                                >
+                                                    -
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`segment-toggle a ${bookSegmentAssignments[b.dhlabid] === 'A' ? 'active' : ''}`}
+                                                    onClick={() => setBookSegmentAssignment(b.dhlabid, 'A')}
+                                                    title="Segment A (blå)"
+                                                >
+                                                    A
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`segment-toggle b ${bookSegmentAssignments[b.dhlabid] === 'B' ? 'active' : ''}`}
+                                                    onClick={() => setBookSegmentAssignment(b.dhlabid, 'B')}
+                                                    title="Segment B (rød)"
+                                                >
+                                                    B
+                                                </button>
+                                            </div>
+                                        </td>
                                         <td className="monospace">{b.urn.replace('URN:NBN:no-nb_digibok_', '')}</td>
                                         <td>{b.author || '-'}</td>
                                         <td>{b.year || '-'}</td>
@@ -147,7 +212,7 @@ export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBook
                                 ))}
                                 {sortedBooks.length === 0 && (
                                     <tr>
-                                        <td colSpan={8} className="empty-state">Ingen bøker i aktivt korpus</td>
+                                        <td colSpan={9} className="empty-state">Ingen bøker i aktivt korpus</td>
                                     </tr>
                                 )}
                             </tbody>

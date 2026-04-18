@@ -22,6 +22,18 @@ interface MapMarkersProps {
     };
 }
 
+interface ComparePlacePoint {
+    id: string;
+    token: string;
+    name: string | null;
+    lat: number;
+    lon: number;
+    frequencyA: number;
+    frequencyB: number;
+    docCountA: number;
+    docCountB: number;
+}
+
 const MAP_MARKER_LIMIT = 1800;
 
 const normalizeType = (value: unknown): 'geonames' | 'internal' | null => {
@@ -108,11 +120,87 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
         markerSizeScale,
         temporalEnabled,
         temporalCutoffYear,
-        temporalMode
+        temporalMode,
+        compareSegmentsEnabled,
+        segmentABookIds,
+        segmentBBookIds
     } = useCorpus();
     const map = useMap();
     const [firstYearByToken, setFirstYearByToken] = useState<Map<string, number> | null>(null);
+    const [comparePlaces, setComparePlaces] = useState<ComparePlacePoint[] | null>(null);
     const temporalMappingReady = !temporalEnabled || firstYearByToken !== null;
+    const compareReady = compareSegmentsEnabled
+        && segmentABookIds.length > 0
+        && segmentBBookIds.length > 0;
+
+    useEffect(() => {
+        if (!compareReady) {
+            setComparePlaces(null);
+            return;
+        }
+
+        let cancelled = false;
+        const fetchPlaces = async (ids: number[]) => {
+            const res = await fetch(`${API_URL}/api/places`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dhlabids: ids, maxPlaces: maxPlacesInView })
+            });
+            if (!res.ok) throw new Error('Failed to fetch compare places');
+            const data = await res.json();
+            return Array.isArray(data?.places) ? data.places : [];
+        };
+
+        const run = async () => {
+            const [placesA, placesB] = await Promise.all([
+                fetchPlaces(segmentABookIds),
+                fetchPlaces(segmentBBookIds)
+            ]);
+            if (cancelled) return;
+            const merged = new Map<string, ComparePlacePoint>();
+            const ingest = (rows: any[], side: 'A' | 'B') => {
+                rows.forEach((row) => {
+                    const placeId = String(row?.id || '').toLowerCase().trim();
+                    if (!placeId) return;
+                    const lat = Number(row?.lat);
+                    const lon = Number(row?.lon);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+                    const current = merged.get(placeId) || {
+                        id: placeId,
+                        token: String(row?.token || ''),
+                        name: row?.name ?? null,
+                        lat,
+                        lon,
+                        frequencyA: 0,
+                        frequencyB: 0,
+                        docCountA: 0,
+                        docCountB: 0
+                    };
+                    if (side === 'A') {
+                        current.frequencyA = Number(row?.frequency) || 0;
+                        current.docCountA = Number(row?.doc_count) || 0;
+                    } else {
+                        current.frequencyB = Number(row?.frequency) || 0;
+                        current.docCountB = Number(row?.doc_count) || 0;
+                    }
+                    merged.set(placeId, current);
+                });
+            };
+            ingest(placesA, 'A');
+            ingest(placesB, 'B');
+            setComparePlaces(Array.from(merged.values()));
+        };
+
+        run().catch((err) => {
+            if (cancelled) return;
+            console.error(err);
+            setComparePlaces(null);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [compareReady, segmentABookIds, segmentBBookIds, API_URL, maxPlacesInView]);
 
     useEffect(() => {
         if (!temporalEnabled) {
@@ -145,6 +233,53 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
     }, [temporalEnabled, activeBooksMetadata, API_URL, maxPlacesInView, totalPlaces]);
 
     const renderedLayers = useMemo(() => {
+        if (compareReady && comparePlaces && comparePlaces.length > 0) {
+            const mapPlaces = [...comparePlaces]
+                .sort((a, b) => (b.frequencyA + b.frequencyB) - (a.frequencyA + a.frequencyB))
+                .slice(0, MAP_MARKER_LIMIT);
+            const frequencies = mapPlaces.map((p) => p.frequencyA + p.frequencyB);
+            const minFreq = Math.min(...frequencies);
+            const maxFreq = Math.max(...frequencies);
+            const logMin = Math.log1p(minFreq);
+            const logMax = Math.log1p(maxFreq);
+            return mapPlaces.map((place) => {
+                let radius = 6;
+                if (logMax > logMin) {
+                    const norm = (Math.log1p(place.frequencyA + place.frequencyB) - logMin) / (logMax - logMin);
+                    radius = 6 + norm * 18;
+                }
+                radius = Math.max(2, Math.min(60, radius * (markerSizeScale / 100)));
+                const inA = place.frequencyA > 0;
+                const inB = place.frequencyB > 0;
+                const color = inA && inB ? '#7c3aed' : (inA ? '#1d4ed8' : '#dc2626');
+                const fill = inA && inB ? '#a78bfa' : (inA ? '#60a5fa' : '#f87171');
+                const label = inA && inB ? 'Begge segmenter' : (inA ? 'Kun segment A' : 'Kun segment B');
+                return (
+                    <CircleMarker
+                        key={`cmp-${place.id}`}
+                        center={[place.lat, place.lon]}
+                        radius={radius}
+                        pathOptions={{ color, fillColor: fill, fillOpacity: 0.72, weight: 1.8 }}
+                        eventHandlers={{
+                            click: () => {
+                                onSelectPlace({ token: place.token, placeId: place.id });
+                                map.panTo([place.lat, place.lon]);
+                            }
+                        }}
+                    >
+                        <Tooltip sticky>
+                            <div style={{ textAlign: 'center', fontSize: '0.85rem' }}>
+                                <strong>{place.token}</strong> {place.name ? `(${place.name})` : ''}<br />
+                                <strong>{label}</strong><br />
+                                A: <strong>{place.frequencyA.toLocaleString()}</strong> treff i <strong>{place.docCountA.toLocaleString()}</strong> bøker<br />
+                                B: <strong>{place.frequencyB.toLocaleString()}</strong> treff i <strong>{place.docCountB.toLocaleString()}</strong> bøker
+                            </div>
+                        </Tooltip>
+                    </CircleMarker>
+                );
+            });
+        }
+
         if (!temporalMappingReady) return [];
         if (places.length === 0) return [];
         const mapPlaces = [...places]
@@ -406,7 +541,9 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
         firstYearByToken
         , temporalMappingReady,
         bookSequence,
-        geoFocus
+        geoFocus,
+        compareReady,
+        comparePlaces
     ]);
 
     if (isPlacesLoading || !temporalMappingReady) {

@@ -63,6 +63,27 @@
     flex-direction: column;
 }
 
+.table-selection-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.table-selection-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.table-selection-actions .btn-text:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .table-container {
     flex-grow: 1;
     overflow-y: auto;
@@ -109,6 +130,64 @@ td {
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 250px;
+}
+
+.segment-column {
+    width: 112px;
+    min-width: 112px;
+    max-width: 112px;
+    text-align: center;
+    padding-left: 4px;
+    padding-right: 4px;
+}
+
+.segment-none td {
+    background: transparent;
+}
+
+.segment-A td {
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.segment-B td {
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.segment-toggle-group {
+    display: inline-flex;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.segment-toggle {
+    border: none;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.72rem;
+    font-weight: 700;
+    width: 32px;
+    height: 24px;
+    cursor: pointer;
+}
+
+.segment-toggle + .segment-toggle {
+    border-left: 1px solid #dbe3ef;
+}
+
+.segment-toggle.none.active {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.segment-toggle.a.active {
+    background: #2563eb;
+    color: #fff;
+}
+
+.segment-toggle.b.active {
+    background: #dc2626;
+    color: #fff;
 }
 
 .monospace {

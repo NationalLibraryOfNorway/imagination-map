@@ -26,7 +26,7 @@ export const CorpusBuilderCard: React.FC = () => {
     const [selectedTitles, setSelectedTitles] = useState<{label: string, value: string}[]>([]);
     const [keywords, setKeywords] = useState<string>('');
     const [contentOperator, setContentOperator] = useState<'AND' | 'OR'>('OR');
-    const [operationMode, setOperationMode] = useState<'add' | 'intersect' | 'remove'>('add');
+    const [operationMode, setOperationMode] = useState<'set' | 'add' | 'intersect' | 'remove'>('set');
     const [isKeywordSearching, setIsKeywordSearching] = useState(false);
     const { layout, onDragStop, onResizeStop } = useWindowLayout({
         key: 'builder',
@@ -73,31 +73,38 @@ export const CorpusBuilderCard: React.FC = () => {
 
     const runBackendCorpusBuild = async (): Promise<number[] | null> => {
         const terms = keywords.split(',').map((k) => k.trim()).filter(Boolean);
+        const categorySet = new Set(selectedCategories.map((c) => c.value));
+        const authorSet = new Set(selectedAuthors.map((a) => a.value));
+        const titleSet = new Set(selectedTitles.map((t) => t.value));
+        const metadataIds = Array.from(
+            new Set(
+                allBooks
+                    .filter((book) => {
+                        if (book.year === null || book.year < yearRange[0] || book.year > yearRange[1]) return false;
+                        if (categorySet.size > 0 && (!book.category || !categorySet.has(book.category))) return false;
+                        if (authorSet.size > 0 && (!book.author || !authorSet.has(book.author))) return false;
+                        if (titleSet.size > 0 && (!book.title || !titleSet.has(book.title))) return false;
+                        return true;
+                    })
+                    .map((book) => book.dhlabid)
+            )
+        );
+
+        if (terms.length === 0) {
+            return metadataIds;
+        }
+        if (metadataIds.length === 0) {
+            return [];
+        }
 
         setIsKeywordSearching(true);
         try {
-            const filters: Record<string, unknown> = {
-                yearRange: [yearRange[0], yearRange[1]]
+            const payload: Record<string, unknown> = {
+                filters: {},
+                baseCorpus: metadataIds,
+                contentKeywords: terms,
+                contentOperator
             };
-            const categories = selectedCategories.map((c) => c.value);
-            const authors = selectedAuthors.map((a) => a.value);
-            const titles = selectedTitles.map((t) => t.value);
-
-            if (categories.length === 1) filters.category = categories[0];
-            if (categories.length > 1) filters.categories = categories;
-            if (authors.length === 1) filters.author = authors[0];
-            if (authors.length > 1) filters.authors = authors;
-            if (titles.length === 1) filters.title = titles[0];
-            if (titles.length > 1) filters.titles = titles;
-
-            const payload: Record<string, unknown> = { filters };
-            if (terms.length > 0) {
-                payload.contentKeywords = terms;
-                payload.contentOperator = contentOperator;
-            }
-            if (activeDhlabids.length > 0) {
-                payload.baseCorpus = activeDhlabids;
-            }
 
             const response = await fetch(`${API_URL}/api/corpus/build`, {
                 method: 'POST',
@@ -147,6 +154,10 @@ export const CorpusBuilderCard: React.FC = () => {
     };
 
     const applyIdsWithMode = (incomingIds: number[]) => {
+        if (operationMode === 'set') {
+            setActiveDhlabids(Array.from(new Set(incomingIds)));
+            return;
+        }
         if (operationMode === 'add') {
             const added = new Set([...activeDhlabids, ...incomingIds]);
             setActiveDhlabids(Array.from(added));
@@ -168,7 +179,7 @@ export const CorpusBuilderCard: React.FC = () => {
         setSelectedCategories([]);
         setSelectedAuthors([]);
         setSelectedTitles([]);
-    }
+    };
 
     const importCorpus = (e: React.ChangeEvent<HTMLInputElement>) => {
         const inputEl = e.currentTarget;
@@ -351,6 +362,7 @@ export const CorpusBuilderCard: React.FC = () => {
 
                     <div className="action-row mt-3">
                         <div className="btn-group">
+                            <button className={`btn-op outline ${operationMode === 'set' ? 'active' : ''}`} onClick={() => setOperationMode('set')} title="Erstatt aktivt korpus med treff">=</button>
                             <button className={`btn-op outline ${operationMode === 'add' ? 'active' : ''}`} onClick={() => setOperationMode('add')} title="Legg til treff i aktivt korpus">+</button>
                             <button className={`btn-op outline ${operationMode === 'intersect' ? 'active' : ''}`} onClick={() => setOperationMode('intersect')} title="Behold kun overlap mellom aktivt korpus og treff">&#38;</button>
                             <button className={`btn-op outline ${operationMode === 'remove' ? 'active' : ''}`} onClick={() => setOperationMode('remove')} title="Fjern treff fra aktivt korpus">-</button>
@@ -374,7 +386,7 @@ export const CorpusBuilderCard: React.FC = () => {
                     </div>
                     <div className="form-group mt-2">
                         <small className="text-muted" style={{ fontSize: '0.7rem' }}>
-                            Filter bruker /api/corpus/build ({contentOperator}) og anvender resultat med valgt modus (+ / & / -).
+                            Metadata filteres lokalt, innholdsord kjøres via /api/corpus/build ({contentOperator}) på filtrerte ID-er.
                         </small>
                     </div>
 

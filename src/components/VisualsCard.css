@@ -78,6 +78,13 @@
   flex-wrap: wrap;
 }
 
+.visuals-help {
+  display: block;
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
 @media (max-width: 900px) {
   .visuals-controls button {
     min-width: 36px;

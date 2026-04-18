@@ -20,7 +20,13 @@ export const VisualsCard: React.FC = () => {
     downlightPercentile,
     setDownlightPercentile,
     lowFreqGreenStrength,
-    setLowFreqGreenStrength
+    setLowFreqGreenStrength,
+    heatmapStrength,
+    setHeatmapStrength,
+    compareSegmentsEnabled,
+    setCompareSegmentsEnabled,
+    segmentABookIds,
+    segmentBBookIds
   } = useCorpus();
   const [isExporting, setIsExporting] = useState(false);
 
@@ -75,9 +81,9 @@ export const VisualsCard: React.FC = () => {
       : '#3b82f6';
   const { layout, onDragStop, onResizeStop } = useWindowLayout({
     key: 'visuals',
-    defaultLayout: { x: 20, y: 20, width: 320, height: 560 },
+    defaultLayout: { x: 20, y: 20, width: 320, height: 640 },
     minWidth: 280,
-    minHeight: 320
+    minHeight: 380
   });
 
   if (!isVisualsOpen) return null;
@@ -177,6 +183,40 @@ export const VisualsCard: React.FC = () => {
               handleStyle={[{ borderColor: sliderHandleColor, backgroundColor: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }]}
             />
           </div>
+        </div>
+
+        <div className="visuals-section">
+          <label>Heatmap-styrke ({heatmapStrength}%)</label>
+          <div style={{ padding: '0 8px' }}>
+            <Slider
+              min={50}
+              max={300}
+              step={10}
+              value={heatmapStrength}
+              onChange={(val) => setHeatmapStrength(val as number)}
+              trackStyle={[{ backgroundColor: '#7c3aed' }]}
+              handleStyle={[{ borderColor: '#7c3aed', backgroundColor: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }]}
+            />
+          </div>
+          <small className="visuals-help">
+            Øker synlighet når det er få punkt i heatmap.
+          </small>
+        </div>
+
+        <div className="visuals-section">
+          <label>Segmentvisning (A/B)</label>
+          <div className="visuals-toggle-row">
+            <button
+              className={`visuals-toggle ${compareSegmentsEnabled ? 'active' : ''}`}
+              onClick={() => setCompareSegmentsEnabled(!compareSegmentsEnabled)}
+              disabled={segmentABookIds.length === 0 || segmentBBookIds.length === 0}
+            >
+              {compareSegmentsEnabled ? 'Sammenligning på' : 'Sammenligning av'}
+            </button>
+          </div>
+          <small className="visuals-help">
+            Velg A/B per bok i bøkerlista. Nå: A={segmentABookIds.length}, B={segmentBBookIds.length}. Kartfarger: blå = kun A, rød = kun B, lilla = begge.
+          </small>
         </div>
 
         <div className="visuals-section">

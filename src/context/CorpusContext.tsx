@@ -22,10 +22,35 @@ export interface PlacePoint {
     doc_count: number;
 }
 
+export interface CorpusSegment {
+  id: string;
+  label: string;
+  dhlabids: number[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface CorpusContextType {
   allBooks: BookMetadata[];
   activeDhlabids: number[];
   setActiveDhlabids: (ids: number[]) => void;
+  segments: CorpusSegment[];
+  selectedSegmentId: string | null;
+  saveSegment: (label: string, ids?: number[]) => void;
+  deleteSegment: (segmentId: string) => void;
+  activateSegment: (segmentId: string) => void;
+  clearSelectedSegment: () => void;
+  compareSegmentsEnabled: boolean;
+  setCompareSegmentsEnabled: (enabled: boolean) => void;
+  compareSegmentAId: string | null;
+  setCompareSegmentAId: (segmentId: string | null) => void;
+  compareSegmentBId: string | null;
+  setCompareSegmentBId: (segmentId: string | null) => void;
+  bookSegmentAssignments: Record<number, 'A' | 'B'>;
+  setBookSegmentAssignment: (bookId: number, segment: 'none' | 'A' | 'B') => void;
+  clearBookSegmentAssignments: () => void;
+  segmentABookIds: number[];
+  segmentBBookIds: number[];
   API_URL: string;
   LEGACY_API_URL: string;
   isLoading: boolean;
@@ -56,6 +81,8 @@ interface CorpusContextType {
   setDownlightPercentile: (val: number) => void;
   lowFreqGreenStrength: number;
   setLowFreqGreenStrength: (val: number) => void;
+  heatmapStrength: number;
+  setHeatmapStrength: (val: number) => void;
   markerSizeScale: number;
   setMarkerSizeScale: (val: number) => void;
   maxPlacesInView: number;
@@ -69,10 +96,18 @@ interface CorpusContextType {
 }
 
 const CorpusContext = createContext<CorpusContextType | undefined>(undefined);
+const SEGMENTS_STORAGE_KEY = 'imagination.corpus.segments.v1';
+const ASSIGNMENTS_STORAGE_KEY = 'imagination.corpus.assignments.v1';
 
 export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [allBooks, setAllBooks] = useState<BookMetadata[]>([]);
-  const [activeDhlabids, setActiveDhlabids] = useState<number[]>([]);
+  const [activeDhlabidsState, setActiveDhlabidsState] = useState<number[]>([]);
+  const [segments, setSegments] = useState<CorpusSegment[]>([]);
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
+  const [compareSegmentsEnabled, setCompareSegmentsEnabled] = useState(false);
+  const [compareSegmentAId, setCompareSegmentAId] = useState<string | null>(null);
+  const [compareSegmentBId, setCompareSegmentBId] = useState<string | null>(null);
+  const [bookSegmentAssignments, setBookSegmentAssignments] = useState<Record<number, 'A' | 'B'>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isBrowseTableOpen, setIsBrowseTableOpen] = useState(false);
@@ -89,6 +124,7 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [downlightColorMode, setDownlightColorMode] = useState<'red' | 'blue'>('blue');
   const [downlightPercentile, setDownlightPercentile] = useState<number>(0);
   const [lowFreqGreenStrength, setLowFreqGreenStrength] = useState<number>(0);
+  const [heatmapStrength, setHeatmapStrength] = useState<number>(100);
   const [markerSizeScale, setMarkerSizeScale] = useState<number>(100);
   const [maxPlacesInView, setMaxPlacesInView] = useState<number>(7000);
   const [temporalEnabled, setTemporalEnabled] = useState<boolean>(false);
@@ -97,6 +133,128 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://api.nb.no/dhlab/imag';
   const LEGACY_API_URL = import.meta.env.VITE_LEGACY_API_URL || 'https://api.nb.no/dhlab';
+  const activeDhlabids = activeDhlabidsState;
+
+  const normalizeIds = (ids: number[]) =>
+    Array.from(
+      new Set(
+        ids
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id))
+      )
+    );
+
+  const setActiveDhlabids = (ids: number[]) => {
+    setSelectedSegmentId(null);
+    setActiveDhlabidsState(normalizeIds(ids));
+  };
+
+  const clearSelectedSegment = () => {
+    setSelectedSegmentId(null);
+  };
+
+  const setBookSegmentAssignment = (bookId: number, segment: 'none' | 'A' | 'B') => {
+    setBookSegmentAssignments((prev) => {
+      const next = { ...prev };
+      if (segment === 'none') {
+        delete next[bookId];
+      } else {
+        next[bookId] = segment;
+      }
+      return next;
+    });
+  };
+
+  const clearBookSegmentAssignments = () => {
+    setBookSegmentAssignments({});
+  };
+
+  const saveSegment = (label: string, ids?: number[]) => {
+    const cleanLabel = label.trim();
+    if (!cleanLabel) return;
+    const segmentIds = normalizeIds(ids ?? activeDhlabidsState);
+    const now = new Date().toISOString();
+    const segmentId = `seg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    setSegments((prev) => [
+      {
+        id: segmentId,
+        label: cleanLabel,
+        dhlabids: segmentIds,
+        createdAt: now,
+        updatedAt: now
+      },
+      ...prev
+    ]);
+  };
+
+  const deleteSegment = (segmentId: string) => {
+    setSegments((prev) => prev.filter((segment) => segment.id !== segmentId));
+    setSelectedSegmentId((prev) => (prev === segmentId ? null : prev));
+    setCompareSegmentAId((prev) => (prev === segmentId ? null : prev));
+    setCompareSegmentBId((prev) => (prev === segmentId ? null : prev));
+  };
+
+  const activateSegment = (segmentId: string) => {
+    const segment = segments.find((item) => item.id === segmentId);
+    if (!segment) return;
+    setSelectedSegmentId(segment.id);
+    setActiveDhlabidsState(normalizeIds(segment.dhlabids));
+  };
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SEGMENTS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      const restored = parsed
+        .map((item) => ({
+          id: typeof item?.id === 'string' ? item.id : '',
+          label: typeof item?.label === 'string' ? item.label : '',
+          dhlabids: Array.isArray(item?.dhlabids) ? normalizeIds(item.dhlabids) : [],
+          createdAt: typeof item?.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
+          updatedAt: typeof item?.updatedAt === 'string' ? item.updatedAt : new Date().toISOString()
+        }))
+        .filter((item) => item.id && item.label);
+      setSegments(restored);
+    } catch (err) {
+      console.error('Could not restore corpus segments', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SEGMENTS_STORAGE_KEY, JSON.stringify(segments));
+    } catch (err) {
+      console.error('Could not persist corpus segments', err);
+    }
+  }, [segments]);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(ASSIGNMENTS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+      const restored = Object.entries(parsed).reduce<Record<number, 'A' | 'B'>>((acc, [rawId, value]) => {
+        const id = Number(rawId);
+        if (!Number.isFinite(id)) return acc;
+        if (value === 'A' || value === 'B') acc[id] = value;
+        return acc;
+      }, {});
+      setBookSegmentAssignments(restored);
+    } catch (err) {
+      console.error('Could not restore A/B assignments', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(ASSIGNMENTS_STORAGE_KEY, JSON.stringify(bookSegmentAssignments));
+    } catch (err) {
+      console.error('Could not persist A/B assignments', err);
+    }
+  }, [bookSegmentAssignments]);
 
   useEffect(() => {
     // Fetch all metadata on initial load
@@ -144,11 +302,44 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     return allBooks.filter(b => activeSet.has(b.dhlabid));
   }, [allBooks, activeDhlabids]);
 
+  const segmentABookIds = useMemo(
+    () => Object.entries(bookSegmentAssignments)
+      .filter(([, segment]) => segment === 'A')
+      .map(([id]) => Number(id))
+      .filter((id) => Number.isFinite(id)),
+    [bookSegmentAssignments]
+  );
+
+  const segmentBBookIds = useMemo(
+    () => Object.entries(bookSegmentAssignments)
+      .filter(([, segment]) => segment === 'B')
+      .map(([id]) => Number(id))
+      .filter((id) => Number.isFinite(id)),
+    [bookSegmentAssignments]
+  );
+
   return (
     <CorpusContext.Provider value={{
       allBooks,
       activeDhlabids,
       setActiveDhlabids,
+      segments,
+      selectedSegmentId,
+      saveSegment,
+      deleteSegment,
+      activateSegment,
+      clearSelectedSegment,
+      compareSegmentsEnabled,
+      setCompareSegmentsEnabled,
+      compareSegmentAId,
+      setCompareSegmentAId,
+      compareSegmentBId,
+      setCompareSegmentBId,
+      bookSegmentAssignments,
+      setBookSegmentAssignment,
+      clearBookSegmentAssignments,
+      segmentABookIds,
+      segmentBBookIds,
       API_URL,
       LEGACY_API_URL,
       isLoading,
@@ -177,6 +368,8 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       setDownlightPercentile,
       lowFreqGreenStrength,
       setLowFreqGreenStrength,
+      heatmapStrength,
+      setHeatmapStrength,
       markerSizeScale,
       setMarkerSizeScale,
       maxPlacesInView,
