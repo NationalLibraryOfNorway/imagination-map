@@ -24,7 +24,7 @@ export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBook
     } = useCorpus();
     const [sortKey, setSortKey] = useState<SortKey>('author');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-    const { layout, onDragStop, onResizeStop } = useWindowLayout({
+    const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
         key: 'browse',
         defaultLayout: { x: 50, y: 50, width: 800, height: 500 },
         minWidth: 400,
@@ -117,6 +117,7 @@ export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBook
             className="corpus-browse-table-rnd"
             style={{ zIndex: activeWindow === 'browse' ? 2600 : 1700 }}
             onDragStart={() => setActiveWindow('browse')}
+            onDrag={onDrag}
             onResizeStart={() => setActiveWindow('browse')}
             onDragStop={onDragStop}
             onResizeStop={onResizeStop}

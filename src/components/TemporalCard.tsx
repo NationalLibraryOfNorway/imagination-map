@@ -35,7 +35,7 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
   const [isTemporalMappingComputing, setIsTemporalMappingComputing] = useState(false);
   const [firstYearByToken, setFirstYearByToken] = useState<Map<string, number> | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const { layout, onDragStop, onResizeStop } = useWindowLayout({
+  const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: 'temporal',
     defaultLayout: { x: 360, y: 20, width: 420, height: 430 },
     minWidth: 300,
@@ -184,6 +184,7 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
       className="temporal-card"
       style={{ zIndex: activeWindow === 'temporal' ? 2600 : 1750 }}
       onDragStart={() => setActiveWindow('temporal')}
+      onDrag={onDrag}
       onResizeStart={() => setActiveWindow('temporal')}
       onDragStop={onDragStop}
       onResizeStop={onResizeStop}

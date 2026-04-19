@@ -22,6 +22,47 @@ export interface PlacePoint {
     doc_count: number;
 }
 
+const toNumber = (value: unknown): number | null => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const toPlacePoint = (row: any): PlacePoint | null => {
+  const idRaw = row?.nb_place_id ?? row?.id;
+  const tokenRaw = row?.token ?? row?.historical_name ?? row?.name ?? row?.modern_name;
+  const nameRaw = row?.name ?? row?.modern_name ?? row?.canonical_name ?? row?.token;
+  const lat = toNumber(row?.lat ?? row?.latitude);
+  const lon = toNumber(row?.lon ?? row?.longitude);
+  const frequency = toNumber(row?.frequency ?? row?.mentions ?? row?.count) ?? 0;
+  const docCount = toNumber(row?.doc_count ?? row?.book_count ?? row?.docs) ?? 0;
+
+  if (lat === null || lon === null) return null;
+  const id = String(idRaw ?? '').trim();
+  const token = String(tokenRaw ?? '').trim();
+  if (!id || !token) return null;
+
+  return {
+    id,
+    token,
+    name: nameRaw ? String(nameRaw) : null,
+    lat,
+    lon,
+    frequency,
+    doc_count: docCount
+  };
+};
+
+const normalizePlaces = (rows: unknown): PlacePoint[] => {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => toPlacePoint(row))
+    .filter((row): row is PlacePoint => row !== null);
+};
+
 export interface CorpusSegment {
   id: string;
   label: string;
@@ -290,8 +331,12 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       return res.json();
     })
       .then(data => { 
-          setPlaces(data.places || []); 
-          setTotalPlaces(data.total_places || (data.places ? data.places.length : 0));
+          const normalizedPlaces = normalizePlaces(data.places || []);
+          setPlaces(normalizedPlaces);
+          setTotalPlaces(
+            Number(data.total_places ?? data.totalPlaces)
+            || normalizedPlaces.length
+          );
           setIsPlacesLoading(false); 
       })
       .catch(err => { console.error(err); setIsPlacesLoading(false); });

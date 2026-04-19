@@ -85,7 +85,20 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [placePage, setPlacePage] = useState(1);
   const [allPlaceRows, setAllPlaceRows] = useState<typeof places | null>(null);
-  const { layout, onDragStop, onResizeStop } = useWindowLayout({
+  const normalizePlaceRows = (rows: any[]) =>
+    (rows || [])
+      .map((row) => ({
+        ...row,
+        id: String(row?.nb_place_id ?? row?.id ?? ''),
+        token: String(row?.token ?? row?.historical_name ?? row?.name ?? '').trim(),
+        name: row?.name ?? row?.modern_name ?? row?.token ?? null,
+        lat: Number(row?.lat ?? row?.latitude),
+        lon: Number(row?.lon ?? row?.longitude),
+        frequency: Number(row?.frequency ?? row?.mentions ?? row?.count) || 0,
+        doc_count: Number(row?.doc_count ?? row?.book_count ?? row?.docs) || 0
+      }))
+      .filter((row) => row.id && row.token && Number.isFinite(row.lat) && Number.isFinite(row.lon));
+  const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: windowKey,
     defaultLayout: { x: defaultPosition?.x ?? 80, y: defaultPosition?.y ?? 24, width: 760, height: 560 },
     minWidth: 520,
@@ -117,7 +130,7 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
       })
       .then((data) => {
         if (cancelled) return;
-        setAllPlaceRows(data.places || []);
+        setAllPlaceRows(normalizePlaceRows(data.places || []));
       })
       .catch((err) => {
         if (cancelled) return;
@@ -353,6 +366,7 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
       className="entity-panel-rnd"
       style={{ zIndex: activeWindow === windowKey ? 2600 : 1800 }}
       onDragStart={() => setActiveWindow(windowKey)}
+      onDrag={onDrag}
       onResizeStart={() => setActiveWindow(windowKey)}
       onDragStop={onDragStop}
       onResizeStop={onResizeStop}

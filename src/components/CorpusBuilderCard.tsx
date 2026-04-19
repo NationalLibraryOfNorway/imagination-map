@@ -28,7 +28,7 @@ export const CorpusBuilderCard: React.FC = () => {
     const [contentOperator, setContentOperator] = useState<'AND' | 'OR'>('OR');
     const [operationMode, setOperationMode] = useState<'set' | 'add' | 'intersect' | 'remove'>('set');
     const [isKeywordSearching, setIsKeywordSearching] = useState(false);
-    const { layout, onDragStop, onResizeStop } = useWindowLayout({
+    const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
         key: 'builder',
         defaultLayout: { x: 30, y: 30, width: 360, height: 620 },
         minWidth: 300,
@@ -258,6 +258,7 @@ export const CorpusBuilderCard: React.FC = () => {
             className="corpus-builder-card"
             style={{ zIndex: activeWindow === 'builder' ? 2600 : 1700 }}
             onDragStart={() => setActiveWindow('builder')}
+            onDrag={onDrag}
             onResizeStart={() => setActiveWindow('builder')}
             onDragStop={onDragStop}
             onResizeStop={onResizeStop}

@@ -32,24 +32,10 @@ function buildGeoTermCandidates(placeId: string | null | undefined): string[] {
     if (!placeId) return [];
     const raw = placeId.trim();
     if (!raw) return [];
-
-    const fullMatch = raw.match(/^#?geo:(geonames|internal):(.+)$/i);
-    if (fullMatch && fullMatch[1] && fullMatch[2]) {
-        const placeType = fullMatch[1].toLowerCase();
-        const placeKey = fullMatch[2].trim();
-        if (!placeKey) return [];
-        return [`#geo:${placeType}:${placeKey}`];
-    }
-
-    const typedMatch = raw.match(/^(geonames|internal):(.+)$/i);
-    if (typedMatch && typedMatch[1] && typedMatch[2]) {
-        const placeType = typedMatch[1].toLowerCase();
-        const placeKey = typedMatch[2].trim();
-        if (!placeKey) return [];
-        return [`#geo:${placeType}:${placeKey}`];
-    }
-
-    return [`#geo:${raw}`];
+  const strippedGeo = raw.replace(/^#?geo:/i, '');
+  const strippedNb = strippedGeo.replace(/^nb:/i, '').trim();
+  if (!/^\d+$/.test(strippedNb)) return [];
+  return [`#geo:${strippedNb}`];
 }
 
 function extractHits(data: any): ConcordanceHit[] {
@@ -126,7 +112,7 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
         () => Object.keys(bookConcordances).length,
         [bookConcordances]
     );
-    const { layout, onDragStop, onResizeStop } = useWindowLayout({
+    const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
         key: 'placeSummary',
         defaultLayout: { x: 760, y: 24, width: 380, height: 600 },
         minWidth: 320,
@@ -458,6 +444,7 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
             className="place-summary-rnd"
             style={{ zIndex: activeWindow === 'summary' ? 2600 : 2000 }}
             onDragStart={() => setActiveWindow('summary')}
+            onDrag={onDrag}
             onResizeStart={() => setActiveWindow('summary')}
             onDragStop={onDragStop}
             onResizeStop={onResizeStop}
@@ -484,7 +471,7 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({ token, place
                             <span>
                                 {effectivePlaceId?.startsWith('geonames:')
                                     ? 'GeonameID'
-                                    : effectivePlaceId?.startsWith('internal:')
+                                    : (effectivePlaceId?.startsWith('internal:') || effectivePlaceId?.startsWith('intern:'))
                                         ? 'Intern-ID'
                                         : 'Steds-ID'}:{' '}
                                 <strong>{effectivePlaceId || 'mangler i datasettet'}</strong>

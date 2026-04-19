@@ -78,7 +78,7 @@ export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
   const cumulativeCount = sequenceRows.length === 0
     ? 0
     : Math.max(0, Math.floor((Math.max(0, Math.min(100, Math.round(progressPct))) / 100) * sequenceRows.length));
-  const { layout, onDragStop, onResizeStop } = useWindowLayout({
+  const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: 'bookSequence',
     defaultLayout: { x: 560, y: 24, width: 500, height: 560 },
     minWidth: 340,
@@ -126,6 +126,7 @@ export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
       className="book-sequence-rnd"
       style={{ zIndex: activeWindow === 'bookSequence' ? 2600 : 1750 }}
       onDragStart={() => setActiveWindow('bookSequence')}
+      onDrag={onDrag}
       onResizeStart={() => setActiveWindow('bookSequence')}
       onDragStop={onDragStop}
       onResizeStop={onResizeStop}

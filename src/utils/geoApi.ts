@@ -1,4 +1,4 @@
-export type GeoKeyType = 'geonames' | 'internal';
+export type GeoKeyType = 'nb' | 'geonames' | 'internal';
 
 export interface GeoConcordanceRequest {
   keyType: GeoKeyType;

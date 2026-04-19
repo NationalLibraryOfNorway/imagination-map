@@ -57,7 +57,7 @@ function App() {
   const [sequenceProgressPct, setSequenceProgressPct] = useState(0);
   const [geoFocusPlaceIds, setGeoFocusPlaceIds] = useState<string[]>([]);
   const [geoFocusDimOthers, setGeoFocusDimOthers] = useState(true);
-  const [geoFocusStyle, setGeoFocusStyle] = useState<'fill' | 'ring'>('fill');
+  const [geoFocusStyle, setGeoFocusStyle] = useState<'fill' | 'ring'>('ring');
 
   const openBookSequenceForBook = (bookId: number) => {
     setSequenceBookId(bookId);
@@ -264,6 +264,7 @@ function App() {
             setGeoFocusPlaceIds(placeIds);
             setGeoFocusDimOthers(dimOthers);
             setGeoFocusStyle(style);
+            setMapVisualMode('map');
           }}
           onClearMapFocus={() => setGeoFocusPlaceIds([])}
           mapFocusAppliedCount={geoFocusPlaceIds.length}

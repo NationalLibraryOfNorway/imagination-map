@@ -81,7 +81,7 @@ export const VisualsCard: React.FC = () => {
   const sliderHandleColor = downlightColorMode === 'red'
       ? '#ef4444'
       : '#3b82f6';
-  const { layout, onDragStop, onResizeStop } = useWindowLayout({
+  const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: 'visuals',
     defaultLayout: { x: 20, y: 20, width: 320, height: 640 },
     minWidth: 280,
@@ -101,6 +101,7 @@ export const VisualsCard: React.FC = () => {
       className="visuals-card"
       style={{ zIndex: activeWindow === 'visuals' ? 2600 : 1750 }}
       onDragStart={() => setActiveWindow('visuals')}
+      onDrag={onDrag}
       onResizeStart={() => setActiveWindow('visuals')}
       onDragStop={onDragStop}
       onResizeStop={onResizeStop}

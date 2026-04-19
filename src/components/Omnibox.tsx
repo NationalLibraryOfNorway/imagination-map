@@ -79,7 +79,7 @@ export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
       .slice(0, 6);
 
     const placeResults = places
-      .filter((place) => hasAllTokens(place.name || place.token, tokens))
+      .filter((place) => hasAllTokens(`${place.token} ${place.name || ''}`, tokens))
       .sort((a, b) => b.frequency - a.frequency)
       .slice(0, 6);
 
@@ -137,7 +137,7 @@ export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
               {results.placeResults.map((place) => (
                 <div key={place.id} className="omnibox-row">
                   <div>
-                    <strong>{place.name || place.token}</strong>
+                    <strong>{place.token}</strong>
                     <small>
                       {place.frequency.toLocaleString()} treff i {place.doc_count.toLocaleString()} bøker
                     </small>

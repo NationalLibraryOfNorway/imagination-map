@@ -36,13 +36,6 @@ interface ComparePlacePoint {
 
 const MAP_MARKER_LIMIT = 1800;
 
-const normalizeType = (value: unknown): 'geonames' | 'internal' | null => {
-    if (value === 'geonames' || value === 'internal') return value;
-    if (value === 1 || value === '1') return 'geonames';
-    if (value === 0 || value === '0') return 'internal';
-    return null;
-};
-
 const toFiniteNumber = (value: unknown): number | null => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : null;
     if (typeof value === 'string') {
@@ -52,17 +45,13 @@ const toFiniteNumber = (value: unknown): number | null => {
     return null;
 };
 
-const normalizePlaceIdCandidates = (value: unknown): string[] => {
+const normalizeNbPlaceIdCandidates = (value: unknown): string[] => {
     if (value === null || value === undefined) return [];
     const raw = String(value).trim().toLowerCase();
     if (!raw) return [];
-    const stripped = raw.startsWith('#geo:') ? raw.slice(5) : raw;
-    const candidates = new Set<string>([raw, stripped]);
-    if (/^\d+$/.test(stripped)) {
-        // Numeric ids are usually geonames in current backend conventions.
-        candidates.add(`geonames:${stripped}`);
-    }
-    return [...candidates];
+    const strippedGeo = raw.startsWith('#geo:') ? raw.slice(5) : raw;
+    const strippedNb = strippedGeo.startsWith('nb:') ? strippedGeo.slice(3) : strippedGeo;
+    return [strippedNb];
 };
 
 const toCoordKey = (lat: number, lon: number): string => `${lat.toFixed(5)}:${lon.toFixed(5)}`;
@@ -170,15 +159,15 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
             const merged = new Map<string, ComparePlacePoint>();
             const ingest = (rows: any[], side: 'A' | 'B') => {
                 rows.forEach((row) => {
-                    const placeId = String(row?.id || '').toLowerCase().trim();
+                    const placeId = String(row?.nb_place_id ?? row?.id ?? '').toLowerCase().trim();
                     if (!placeId) return;
-                    const lat = Number(row?.lat);
-                    const lon = Number(row?.lon);
+                    const lat = Number(row?.lat ?? row?.latitude);
+                    const lon = Number(row?.lon ?? row?.longitude);
                     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
                     const current = merged.get(placeId) || {
                         id: placeId,
-                        token: String(row?.token || ''),
-                        name: row?.name ?? null,
+                        token: String(row?.token ?? row?.historical_name ?? row?.name ?? ''),
+                        name: row?.name ?? row?.modern_name ?? row?.token ?? null,
                         lat,
                         lon,
                         frequencyA: 0,
@@ -187,11 +176,11 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
                         docCountB: 0
                     };
                     if (side === 'A') {
-                        current.frequencyA = Number(row?.frequency) || 0;
-                        current.docCountA = Number(row?.doc_count) || 0;
+                        current.frequencyA = Number(row?.frequency ?? row?.mentions ?? row?.count) || 0;
+                        current.docCountA = Number(row?.doc_count ?? row?.book_count ?? row?.docs) || 0;
                     } else {
-                        current.frequencyB = Number(row?.frequency) || 0;
-                        current.docCountB = Number(row?.doc_count) || 0;
+                        current.frequencyB = Number(row?.frequency ?? row?.mentions ?? row?.count) || 0;
+                        current.docCountB = Number(row?.doc_count ?? row?.book_count ?? row?.docs) || 0;
                     }
                     merged.set(placeId, current);
                 });
@@ -284,7 +273,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
                     >
                         <Tooltip sticky>
                             <div style={{ textAlign: 'center', fontSize: '0.85rem' }}>
-                                <strong>{place.token}</strong> {place.name ? `(${place.name})` : ''}<br />
+                                <strong>{place.token}</strong><br />
                                 <strong>{label}</strong><br />
                                 A: <strong>{place.frequencyA.toLocaleString()}</strong> treff i <strong>{place.docCountA.toLocaleString()}</strong> bøker<br />
                                 B: <strong>{place.frequencyB.toLocaleString()}</strong> treff i <strong>{place.docCountB.toLocaleString()}</strong> bøker
@@ -322,23 +311,9 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
         const sequenceIds = new Set<string>();
         const sequenceCoords = new Set<string>();
         progressRows.forEach((row) => {
-            const normalizedType = normalizeType((row as any).placeKeyType);
-            const keyRaw = (row as any).placeKey;
-            const key = keyRaw === null || keyRaw === undefined ? '' : String(keyRaw).trim();
-            if (normalizedType && key) {
-                sequenceIds.add(`${normalizedType}:${key}`.toLowerCase());
-            } else if (key) {
-                // If type is missing, allow both namespaces so markers are not lost.
-                sequenceIds.add(`geonames:${key}`.toLowerCase());
-                sequenceIds.add(`internal:${key}`.toLowerCase());
-            }
-            const geonamesId = toFiniteNumber((row as any).geonamesId);
-            if (geonamesId !== null) {
-                sequenceIds.add(`geonames:${String(geonamesId)}`.toLowerCase());
-            }
             const placeId = toFiniteNumber((row as any).placeId);
             if (placeId !== null) {
-                sequenceIds.add(`internal:${String(placeId)}`.toLowerCase());
+                sequenceIds.add(String(placeId));
             }
             const lat = toFiniteNumber((row as any).place?.lat);
             const lon = toFiniteNumber((row as any).place?.lon);
@@ -401,12 +376,15 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
             const temporalFill = temporalEnabled && temporalMode === 'color' && (isAfterOnly || isUnknown) ? '#cbd5e1' : activeFill;
             const temporalStroke = temporalEnabled && temporalMode === 'color' && (isAfterOnly || isUnknown) ? '#94a3b8' : activeStroke;
             const temporalOpacity = temporalEnabled && temporalMode === 'color' && (isAfterOnly || isUnknown) ? 0.28 : (downlightColorMode === 'red' ? 0.62 : 0.54);
-            const placeIdCandidates = normalizePlaceIdCandidates(place.id);
+            const placeIdCandidates = normalizeNbPlaceIdCandidates(place.id);
             const inBookSequence = (
                 (hasSequence && placeIdCandidates.some((candidate) => sequenceIds.has(candidate)))
                 || sequenceCoords.has(toCoordKey(place.lat, place.lon))
             );
             const inGeoFocus = hasGeoFocus && placeIdCandidates.some((candidate) => geoFocusIds.has(candidate));
+            if (hasGeoFocus && geoFocus?.dimOthers && !inGeoFocus) {
+                return null;
+            }
             const shouldDimBySequence = hasSequence && bookSequence?.dimOthers && !inBookSequence;
             const shouldDimByGeo = hasGeoFocus && geoFocus?.dimOthers && !inGeoFocus && !inBookSequence;
             const shouldDimByFocus = shouldDimBySequence || shouldDimByGeo;
@@ -416,8 +394,8 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
                 : inGeoFocus
                     ? Math.max(3.2, radius * 1.12)
                     : radius;
-            const geoStroke = '#c2410c';
-            const geoFill = '#fb923c';
+            const geoStroke = '#0ea5e9';
+            const geoFill = '#38bdf8';
             const useGeoRing = inGeoFocus && geoFocus?.style === 'ring';
             const displayStroke = inBookSequence
                 ? '#ca8a04'
@@ -436,7 +414,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
                 : inBookSequence
                     ? 2.2
                     : inGeoFocus
-                        ? 2.1
+                        ? (useGeoRing ? 2.8 : 2.1)
                         : (isDownlighted ? 0 : 1.5);
             const fallbackFill = shouldDimByFocus ? '#cbd5e1' : dimFill;
 
@@ -448,7 +426,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
                     pathOptions={{ 
                         color: isDownlighted && !isAnyFocused ? 'transparent' : displayStroke,
                         fillColor: isDownlighted && !isAnyFocused ? fallbackFill : displayFill,
-                        fillOpacity: isDownlighted && !isAnyFocused ? Math.min(displayOpacity, 0.12) : (useGeoRing ? 0.15 : displayOpacity),
+                        fillOpacity: isDownlighted && !isAnyFocused ? Math.min(displayOpacity, 0.12) : (useGeoRing ? 0.06 : displayOpacity),
                         weight: displayWeight
                     }}
                     eventHandlers={{
@@ -463,7 +441,7 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
                 >
                     <Tooltip sticky>
                         <div style={{ textAlign: 'center', fontSize: '0.85rem' }}>
-                            <strong>{place.token}</strong> {place.name ? `(${place.name})` : ''}<br />
+                            <strong>{place.token}</strong><br />
                             Nevnt: <strong>{place.frequency.toLocaleString()}</strong> ganger<br />
                             Forekommer i: <strong>{place.doc_count.toLocaleString()}</strong> bøker
                             {temporalEnabled && temporalCutoffYear !== null && (
@@ -480,10 +458,8 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
 
         const sequenceOverlayMarkers = progressRows
             .map((row, idx) => {
-                const normalizedType = normalizeType((row as any).placeKeyType);
-                const key = normalizedType && (row as any).placeKey
-                    ? `${normalizedType}:${String((row as any).placeKey).toLowerCase()}`
-                    : null;
+                const placeId = toFiniteNumber((row as any).placeId);
+                const key = placeId !== null ? String(placeId).toLowerCase() : null;
                 if (key && renderedMapPlaceIds.has(key)) return null;
 
                 let lat = toFiniteNumber(row.place?.lat);
@@ -517,10 +493,8 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
 
         const polylinePoints: [number, number][] = lineRows
             .map((row) => {
-                const normalizedType = normalizeType((row as any).placeKeyType);
-                const key = normalizedType && (row as any).placeKey
-                    ? `${normalizedType}:${String((row as any).placeKey)}`
-                    : '';
+                const placeId = toFiniteNumber((row as any).placeId);
+                const key = placeId !== null ? String(placeId) : '';
                 const lat = toFiniteNumber(row.place?.lat);
                 const lon = toFiniteNumber(row.place?.lon);
                 if (lat !== null && lon !== null) return [lat, lon] as [number, number];

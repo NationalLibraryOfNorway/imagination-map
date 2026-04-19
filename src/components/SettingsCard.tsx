@@ -15,7 +15,7 @@ export const SettingsCard: React.FC = () => {
     maxPlacesInView,
     setMaxPlacesInView
   } = useCorpus();
-  const { layout, onDragStop, onResizeStop } = useWindowLayout({
+  const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: 'settings',
     defaultLayout: { x: 20, y: 260, width: 320, height: 360 },
     minWidth: 280,
@@ -35,6 +35,7 @@ export const SettingsCard: React.FC = () => {
       className="settings-card"
       style={{ zIndex: activeWindow === 'settings' ? 2600 : 1750 }}
       onDragStart={() => setActiveWindow('settings')}
+      onDrag={onDrag}
       onResizeStart={() => setActiveWindow('settings')}
       onDragStop={onDragStop}
       onResizeStop={onResizeStop}

@@ -102,6 +102,10 @@ export function useWindowLayout({
     setLayout(clamped);
   }, [persistLayout]);
 
+  const onDrag = useCallback<RndDragCallback>((_event, data) => {
+    setLayout((prev) => ({ ...prev, x: data.x, y: data.y }));
+  }, []);
+
   const onDragStop = useCallback<RndDragCallback>((_event, data) => {
     setAndPersist({ ...layout, x: data.x, y: data.y });
   }, [layout, setAndPersist]);
@@ -126,6 +130,7 @@ export function useWindowLayout({
 
   return {
     layout,
+    onDrag,
     onDragStop,
     onResizeStop
   };

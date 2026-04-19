@@ -10,6 +10,20 @@ interface HeatmapLayerProps {
   useFullDataset?: boolean;
 }
 
+const normalizePlaces = (rows: any[]): any[] =>
+  (rows || [])
+    .map((row) => ({
+      ...row,
+      id: row?.nb_place_id ?? row?.id,
+      token: row?.token ?? row?.historical_name ?? row?.name,
+      name: row?.name ?? row?.modern_name ?? row?.token ?? null,
+      lat: Number(row?.lat ?? row?.latitude),
+      lon: Number(row?.lon ?? row?.longitude),
+      frequency: Number(row?.frequency ?? row?.mentions ?? row?.count) || 0,
+      doc_count: Number(row?.doc_count ?? row?.book_count ?? row?.docs) || 0
+    }))
+    .filter((row) => row.id !== undefined && row.token && Number.isFinite(row.lat) && Number.isFinite(row.lon));
+
 export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = false }) => {
   const map = useMap();
   const {
@@ -69,7 +83,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
       });
       if (!res.ok) throw new Error('Failed to fetch segment places for heatmap compare');
       const data = await res.json();
-      return data.places || [];
+      return normalizePlaces(data.places || []);
     };
     const run = async () => {
       const [placesA, placesB] = await Promise.all([
@@ -115,7 +129,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
       })
       .then((data) => {
         if (cancelled) return;
-        setFullPlaces(data.places || []);
+        setFullPlaces(normalizePlaces(data.places || []));
       })
       .catch((err) => {
         if (cancelled) return;

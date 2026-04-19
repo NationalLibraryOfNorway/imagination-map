@@ -18,6 +18,7 @@ interface GeoRow {
   pos: number;
   seqStart?: number;
   tokenLen?: number;
+  placeId?: number;
   placeKeyType?: string;
   placeKey?: string;
   surfaceText?: string;
@@ -66,9 +67,24 @@ function extractPlaceFromFrag(fragment: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
+function normalizeNbPlaceId(row: GeoRow): string[] {
+  const out = new Set<string>();
+  const placeId = Number(row.placeId);
+  if (Number.isFinite(placeId)) {
+    out.add(String(placeId));
+  }
+  const keyType = String(row.placeKeyType || '').trim().toLowerCase();
+  const key = String(row.placeKey || '').trim().toLowerCase();
+  if ((keyType === 'nb' || !keyType) && /^\d+$/.test(key)) {
+    out.add(key);
+  }
+  return Array.from(out);
+}
+
 function formatPlaceId(row: GeoRow): string {
-  if (!row.placeKey) return '';
-  return row.placeKeyType === 'geonames' ? row.placeKey : `intern:${row.placeKey}`;
+  const ids = normalizeNbPlaceId(row);
+  if (ids.length === 0) return '';
+  return ids[0];
 }
 
 function highlightGeoBracket(fragment: string): string {
@@ -129,7 +145,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
   const [groupSort, setGroupSort] = useState<'count' | 'name'>('count');
   const lastQuerySignatureRef = useRef('');
   const lastWindowRef = useRef(8);
-  const { layout, onDragStop, onResizeStop } = useWindowLayout({
+  const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: 'geoConcordance',
     defaultLayout: { x: 740, y: 24, width: 520, height: 560 },
     minWidth: 420,
@@ -162,7 +178,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     rows.forEach((row) => {
       const frag = renderedMap.get(`${row.bookId}:${row.pos}`) || '';
       const extracted = extractPlaceFromFrag(frag);
-      const type = row.placeKeyType || 'internal';
+      const type = row.placeKeyType || 'nb';
       const key = row.placeKey || row.surfaceText || extracted || 'ukjent';
       const label = extracted || row.surfaceText || key;
       const groupId = `${type}:${label.toLowerCase()}`;
@@ -203,7 +219,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     rows.forEach((row) => {
       const frag = renderedMap.get(`${row.bookId}:${row.pos}`) || '';
       const extracted = extractPlaceFromFrag(frag);
-      const type = row.placeKeyType || 'internal';
+      const type = row.placeKeyType || 'nb';
       const fallback = row.placeKey || row.surfaceText || extracted || 'ukjent';
       const label = extracted || row.surfaceText || fallback;
       ids.add(`${type}:${label.toLowerCase()}`);
@@ -214,16 +230,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
   const mapPlaceIds = useMemo(() => {
     const ids = new Set<string>();
     rows.forEach((row) => {
-      const rawType = String(row.placeKeyType || '').toLowerCase();
-      const rawKey = String(row.placeKey || '').trim();
-      if (!rawKey) return;
-      const type = rawType === 'geonames' || rawType === '1'
-        ? 'geonames'
-        : rawType === 'internal' || rawType === '0'
-          ? 'internal'
-          : null;
-      if (!type) return;
-      ids.add(`${type}:${rawKey}`.toLowerCase());
+      normalizeNbPlaceId(row).forEach((id) => ids.add(id));
     });
     return Array.from(ids);
   }, [rows]);
@@ -448,7 +455,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     onApplyMapFocus({
       placeIds: nextPlaceIds,
       dimOthers: nextDimOthers,
-      style: 'fill'
+      style: 'ring'
     });
   };
 
@@ -464,6 +471,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
       className="geo-conc-rnd"
       style={{ zIndex: activeWindow === 'geoConcordance' ? 2600 : 1750 }}
       onDragStart={() => setActiveWindow('geoConcordance')}
+      onDrag={onDrag}
       onResizeStart={() => setActiveWindow('geoConcordance')}
       onDragStop={onDragStop}
       onResizeStop={onResizeStop}
@@ -544,20 +552,21 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
           <div className="geo-conc-map-tools">
             <button
               type="button"
-              onClick={() => applyCurrentMapFocus()}
-              disabled={isLoading || mapPlaceIds.length === 0}
-              title="Marker stedene fra nåværende geo-konkordans i kartet"
+              onClick={() => {
+                if (mapFocusAppliedCount > 0) {
+                  onClearMapFocus();
+                } else {
+                  applyCurrentMapFocus();
+                }
+              }}
+              disabled={isLoading || (mapFocusAppliedCount === 0 && mapPlaceIds.length === 0)}
+              title={
+                mapFocusAppliedCount > 0
+                  ? 'Slå av kartfokus'
+                  : 'Vis kun stedene fra nåværende geo-konkordans i kartet'
+              }
             >
-              Vis steder på kart
-            </button>
-            <button
-              type="button"
-              className="geo-conc-map-clear"
-              onClick={onClearMapFocus}
-              disabled={mapFocusAppliedCount === 0}
-              title="Fjern geo-markering fra kartet"
-            >
-              Fjern kartmarkering
+              {mapFocusAppliedCount > 0 ? 'Skjul kartfokus' : 'Vis steder på kart'}
             </button>
             <label>
               <input
