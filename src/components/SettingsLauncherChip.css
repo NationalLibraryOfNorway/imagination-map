@@ -1,0 +1,21 @@
+.settings-launcher {
+  position: absolute;
+  top: calc(var(--ui-top-rail-height) + var(--ui-gutter) + 52px);
+  left: var(--ui-gutter);
+  z-index: 5000;
+}
+
+.settings-launcher-chip {
+  min-width: 42px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  justify-content: center;
+}
+
+.settings-launcher .chip-menu {
+  left: 18px;
+  top: calc(100% + 8px);
+  bottom: auto;
+  z-index: 5100;
+}

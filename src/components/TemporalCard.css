@@ -1,0 +1,201 @@
+.temporal-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.2);
+  overflow: hidden;
+}
+
+.temporal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.temporal-title {
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.temporal-controls button {
+  border: none;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.temporal-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.temporal-section label {
+  display: block;
+  font-size: 0.82rem;
+  color: #334155;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.temporal-toggle {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.65);
+  color: #334155;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+}
+
+.temporal-toggle.active {
+  border-color: rgba(75, 108, 183, 0.5);
+  background: rgba(75, 108, 183, 0.14);
+  color: #1d4ed8;
+}
+
+.temporal-range {
+  display: flex;
+  justify-content: space-between;
+  color: #64748b;
+  font-size: 0.74rem;
+  margin-top: 6px;
+}
+
+.temporal-play-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.temporal-play-btn {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.65);
+  color: #334155;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.temporal-play-btn.active {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: rgba(37, 99, 235, 0.14);
+  color: #1d4ed8;
+}
+
+.temporal-mode-row {
+  display: flex;
+  gap: 8px;
+}
+
+.temporal-mode-row button {
+  flex: 1;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(255, 255, 255, 0.65);
+  color: #334155;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.temporal-mode-row button.active {
+  border-color: rgba(75, 108, 183, 0.5);
+  background: rgba(75, 108, 183, 0.14);
+  color: #1d4ed8;
+}
+
+.temporal-computing-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.temporal-chart-shell {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 8px 8px 6px;
+}
+
+.temporal-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.temporal-chart-axis {
+  stroke: rgba(71, 85, 105, 0.7);
+  stroke-width: 1;
+}
+
+.temporal-chart-grid {
+  stroke: rgba(148, 163, 184, 0.35);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.temporal-chart-grid--start {
+  stroke: rgba(37, 99, 235, 0.32);
+}
+
+.temporal-chart-line {
+  fill: none;
+  stroke: #2563eb;
+  stroke-width: 2;
+}
+
+.temporal-chart-tick {
+  fill: #64748b;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.temporal-chart-tick--start {
+  fill: #2563eb;
+}
+
+.temporal-chart-cutoff {
+  stroke: rgba(234, 88, 12, 0.7);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+
+.temporal-chart-start-point {
+  fill: #2563eb;
+}
+
+.temporal-chart-legend {
+  margin-top: 4px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.temporal-chart-empty {
+  color: #64748b;
+  font-size: 0.76rem;
+  padding: 6px 2px;
+}

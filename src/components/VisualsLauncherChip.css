@@ -1,0 +1,21 @@
+.visuals-launcher {
+  position: absolute;
+  top: calc(var(--ui-top-rail-height) + var(--ui-gutter));
+  left: var(--ui-gutter);
+  z-index: 5000;
+}
+
+.visuals-launcher-chip {
+  min-width: 42px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  justify-content: center;
+}
+
+.visuals-launcher .chip-menu {
+  left: 54px;
+  top: calc(100% + 8px);
+  bottom: auto;
+  z-index: 5100;
+}
