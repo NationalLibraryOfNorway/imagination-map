@@ -3,10 +3,11 @@ import './SettingsLauncherChip.css';
 
 interface SettingsLauncherChipProps {
   onSettingsPanelClick: () => void;
+  onPlaceQaClick: () => void;
   onSuggestChangeClick: () => void;
 }
 
-export const SettingsLauncherChip: React.FC<SettingsLauncherChipProps> = ({ onSettingsPanelClick, onSuggestChangeClick }) => {
+export const SettingsLauncherChip: React.FC<SettingsLauncherChipProps> = ({ onSettingsPanelClick, onPlaceQaClick, onSuggestChangeClick }) => {
   const [isOpen, setIsOpen] = useState(false);
   const closeTimer = useRef<number | null>(null);
   const launcherRef = useRef<HTMLDivElement | null>(null);
@@ -75,6 +76,7 @@ export const SettingsLauncherChip: React.FC<SettingsLauncherChipProps> = ({ onSe
           }}
         >
           <button onClick={() => { onSettingsPanelClick(); setIsOpen(false); }}>Generelle parametre</button>
+          <button onClick={() => { onPlaceQaClick(); setIsOpen(false); }}>Tell sted vs ord</button>
           <button onClick={() => { onSuggestChangeClick(); setIsOpen(false); }}>Foreslå endring</button>
         </div>
       )}

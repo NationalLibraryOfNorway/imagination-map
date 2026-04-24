@@ -298,6 +298,31 @@
   color: #0f172a;
 }
 
+.entity-place-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.entity-spurious-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: #b45309;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.entity-cell-subtle {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 0.7rem;
+}
+
 .entity-places-table tr.active td {
   background: rgba(75, 108, 183, 0.1);
 }

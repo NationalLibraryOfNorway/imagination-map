@@ -2,14 +2,18 @@ import React, { useEffect, useRef, useState } from 'react';
 import './VisualsLauncherChip.css';
 
 interface VisualsLauncherChipProps {
+  hasActivePlaceKindFilter?: boolean;
   onVisualsDefaultClick: () => void;
+  onVisualsPlaceStatsClick: () => void;
   onVisualsMapClick: () => void;
   onVisualsHeatmapClick: () => void;
   onVisualsHeatmapAllClick: () => void;
 }
 
 export const VisualsLauncherChip: React.FC<VisualsLauncherChipProps> = ({
+  hasActivePlaceKindFilter = false,
   onVisualsDefaultClick,
+  onVisualsPlaceStatsClick,
   onVisualsMapClick,
   onVisualsHeatmapClick,
   onVisualsHeatmapAllClick
@@ -67,9 +71,10 @@ export const VisualsLauncherChip: React.FC<VisualsLauncherChipProps> = ({
           setIsOpen((open) => !open);
         }}
         onTouchStart={cancelClose}
-        title="Åpne visuals-meny"
+        title={hasActivePlaceKindFilter ? 'Åpne visuals-meny (stedstypefilter aktivt)' : 'Åpne visuals-meny'}
       >
         <i className="fas fa-layer-group"></i>
+        {hasActivePlaceKindFilter && <span className="visuals-launcher-badge" aria-hidden="true" />}
       </button>
 
       {isOpen && (
@@ -82,6 +87,7 @@ export const VisualsLauncherChip: React.FC<VisualsLauncherChipProps> = ({
           }}
         >
           <button onClick={() => { onVisualsDefaultClick(); setIsOpen(false); }}>Visuals panel</button>
+          <button onClick={() => { onVisualsPlaceStatsClick(); setIsOpen(false); }}>Place stats</button>
           <button onClick={() => { onVisualsMapClick(); setIsOpen(false); }}>Kartmodus</button>
           <button onClick={() => { onVisualsHeatmapClick(); setIsOpen(false); }}>Heatmap-modus</button>
           <button onClick={() => { onVisualsHeatmapAllClick(); setIsOpen(false); }}>Heatmap (alle steder)</button>

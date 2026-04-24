@@ -32,9 +32,12 @@ interface ComparePlacePoint {
     frequencyB: number;
     docCountA: number;
     docCountB: number;
+    kind?: string | null;
+    featureCode?: string | null;
 }
 
 const MAP_MARKER_LIMIT = 1800;
+const normalizeTemporalPlaceId = (placeId: string): string => placeId.trim().toLowerCase();
 
 const toFiniteNumber = (value: unknown): number | null => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -99,7 +102,6 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
     const {
         places,
         activeDhlabids,
-        totalPlaces,
         activeBooksMetadata,
         API_URL,
         maxPlacesInView,
@@ -113,12 +115,13 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
         temporalMode,
         compareSegmentsEnabled,
         segmentABookIds,
-        segmentBBookIds
+        segmentBBookIds,
+        selectedPlaceKindFilter
     } = useCorpus();
     const map = useMap();
-    const [firstYearByToken, setFirstYearByToken] = useState<Map<string, number> | null>(null);
+    const [firstYearByPlaceId, setFirstYearByPlaceId] = useState<Map<string, number> | null>(null);
     const [comparePlaces, setComparePlaces] = useState<ComparePlacePoint[] | null>(null);
-    const temporalMappingReady = !temporalEnabled || firstYearByToken !== null;
+    const temporalMappingReady = !temporalEnabled || firstYearByPlaceId !== null;
     const activeCorpusSet = useMemo(() => new Set(activeDhlabids), [activeDhlabids]);
     const compareABookIds = useMemo(
         () => segmentABookIds.filter((id) => activeCorpusSet.has(id)),
@@ -131,6 +134,10 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
     const compareReady = compareSegmentsEnabled
         && compareABookIds.length > 0
         && compareBBookIds.length > 0;
+    const temporalTargetPlaceIds = useMemo(
+        () => Array.from(new Set(places.map((place) => normalizeTemporalPlaceId(place.id)).filter(Boolean))),
+        [places]
+    );
 
     useEffect(() => {
         if (!compareReady) {
@@ -173,7 +180,9 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
                         frequencyA: 0,
                         frequencyB: 0,
                         docCountA: 0,
-                        docCountB: 0
+                        docCountB: 0,
+                        kind: row?.kind ? String(row.kind).trim().toLowerCase() : null,
+                        featureCode: row?.featureCode ?? row?.feature_code ?? null
                     };
                     if (side === 'A') {
                         current.frequencyA = Number(row?.frequency ?? row?.mentions ?? row?.count) || 0;
@@ -203,33 +212,32 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
 
     useEffect(() => {
         if (!temporalEnabled) {
-            setFirstYearByToken(null);
+            setFirstYearByPlaceId(null);
             return;
         }
 
         // Avoid rendering with stale year mapping while recomputing.
-        setFirstYearByToken(null);
+        setFirstYearByPlaceId(null);
         let cancelled = false;
         const run = async () => {
             const firstSeen = await fetchFirstYearByTokenForCorpus({
                 apiUrl: API_URL,
                 activeBooksMetadata,
-                maxPlacesInView,
-                totalPlaces
+                targetPlaceIds: temporalTargetPlaceIds
             });
-            if (!cancelled) setFirstYearByToken(firstSeen);
+            if (!cancelled) setFirstYearByPlaceId(firstSeen);
         };
 
         run().catch((err) => {
             if (cancelled) return;
             console.error(err);
-            setFirstYearByToken(null);
+            setFirstYearByPlaceId(null);
         });
 
         return () => {
             cancelled = true;
         };
-    }, [temporalEnabled, activeBooksMetadata, API_URL, maxPlacesInView, totalPlaces]);
+    }, [temporalEnabled, activeBooksMetadata, API_URL, temporalTargetPlaceIds]);
 
     const renderedLayers = useMemo(() => {
         if (compareReady && !comparePlaces) {
@@ -238,8 +246,10 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
         }
         if (compareReady && comparePlaces && comparePlaces.length > 0) {
             const mapPlaces = [...comparePlaces]
+                .filter((place) => !selectedPlaceKindFilter || place.kind === selectedPlaceKindFilter)
                 .sort((a, b) => (b.frequencyA + b.frequencyB) - (a.frequencyA + a.frequencyB))
                 .slice(0, MAP_MARKER_LIMIT);
+            if (mapPlaces.length === 0) return [];
             const frequencies = mapPlaces.map((p) => p.frequencyA + p.frequencyB);
             const minFreq = Math.min(...frequencies);
             const maxFreq = Math.max(...frequencies);
@@ -286,7 +296,11 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
 
         if (!temporalMappingReady) return [];
         if (places.length === 0) return [];
-        const mapPlaces = [...places]
+        const filteredPlaces = selectedPlaceKindFilter
+            ? places.filter((place) => place.kind === selectedPlaceKindFilter)
+            : places;
+        if (filteredPlaces.length === 0) return [];
+        const mapPlaces = [...filteredPlaces]
             .sort((a, b) => b.frequency - a.frequency)
             .slice(0, MAP_MARKER_LIMIT);
         const renderedMapPlaceIds = new Set(
@@ -349,16 +363,13 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
             radius = Math.max(2, Math.min(60, radius * (markerSizeScale / 100)));
             
             const isDownlighted = place.frequency <= thresholdFreq;
-            const firstYear = firstYearByToken?.get(place.token);
+            const firstYear = firstYearByPlaceId?.get(normalizeTemporalPlaceId(place.id));
             const isAfterOnly = temporalEnabled
                 && temporalCutoffYear !== null
                 && typeof firstYear === 'number'
                 && firstYear >= temporalCutoffYear;
-            const isUnknown = temporalEnabled
-                && temporalCutoffYear !== null
-                && typeof firstYear !== 'number';
 
-            if (temporalEnabled && temporalMode === 'toggle' && (isAfterOnly || isUnknown)) {
+            if (temporalEnabled && temporalMode === 'toggle' && isAfterOnly) {
                 return null;
             }
 
@@ -373,9 +384,9 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
             const activeStroke = mixHex(baseStroke, '#15803d', greenMix * 0.9);
             const activeFill = mixHex(baseFill, greenBase, greenMix);
             const dimFill = mixHex(downlightColorMode === 'red' ? '#fca5a5' : '#93c5fd', '#86efac', greenMix);
-            const temporalFill = temporalEnabled && temporalMode === 'color' && (isAfterOnly || isUnknown) ? '#cbd5e1' : activeFill;
-            const temporalStroke = temporalEnabled && temporalMode === 'color' && (isAfterOnly || isUnknown) ? '#94a3b8' : activeStroke;
-            const temporalOpacity = temporalEnabled && temporalMode === 'color' && (isAfterOnly || isUnknown) ? 0.28 : (downlightColorMode === 'red' ? 0.62 : 0.54);
+            const temporalFill = temporalEnabled && temporalMode === 'color' && isAfterOnly ? '#cbd5e1' : activeFill;
+            const temporalStroke = temporalEnabled && temporalMode === 'color' && isAfterOnly ? '#94a3b8' : activeStroke;
+            const temporalOpacity = temporalEnabled && temporalMode === 'color' && isAfterOnly ? 0.28 : (downlightColorMode === 'red' ? 0.62 : 0.54);
             const placeIdCandidates = normalizeNbPlaceIdCandidates(place.id);
             const inBookSequence = (
                 (hasSequence && placeIdCandidates.some((candidate) => sequenceIds.has(candidate)))
@@ -527,12 +538,13 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({ onSelectPlace, bookSeque
         temporalEnabled,
         temporalCutoffYear,
         temporalMode,
-        firstYearByToken
+        firstYearByPlaceId
         , temporalMappingReady,
         bookSequence,
         geoFocus,
         compareReady,
-        comparePlaces
+        comparePlaces,
+        selectedPlaceKindFilter
     ]);
 
     const markerRenderKey = `${compareReady ? 'compare' : 'normal'}:${markerSizeScale}`;

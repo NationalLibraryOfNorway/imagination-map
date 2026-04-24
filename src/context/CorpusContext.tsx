@@ -20,6 +20,8 @@ export interface PlacePoint {
     lon: number;
     frequency: number;
     doc_count: number;
+    featureCode?: string | null;
+    kind?: string | null;
 }
 
 const toNumber = (value: unknown): number | null => {
@@ -39,6 +41,8 @@ const toPlacePoint = (row: any): PlacePoint | null => {
   const lon = toNumber(row?.lon ?? row?.longitude);
   const frequency = toNumber(row?.frequency ?? row?.mentions ?? row?.count) ?? 0;
   const docCount = toNumber(row?.doc_count ?? row?.book_count ?? row?.docs) ?? 0;
+  const featureCodeRaw = row?.featureCode ?? row?.feature_code ?? null;
+  const kindRaw = row?.kind ?? null;
 
   if (lat === null || lon === null) return null;
   const id = String(idRaw ?? '').trim();
@@ -52,7 +56,9 @@ const toPlacePoint = (row: any): PlacePoint | null => {
     lat,
     lon,
     frequency,
-    doc_count: docCount
+    doc_count: docCount,
+    featureCode: featureCodeRaw ? String(featureCodeRaw) : null,
+    kind: kindRaw ? String(kindRaw).trim().toLowerCase() : null
   };
 };
 
@@ -108,8 +114,8 @@ interface CorpusContextType {
   setIsSettingsOpen: (val: boolean) => void;
   isGeoConcordanceOpen: boolean;
   setIsGeoConcordanceOpen: (val: boolean) => void;
-  activeWindow: 'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'geoConcordance' | 'bookSequence' | 'entityAuthors' | 'entityPlaces' | 'summary' | null;
-  setActiveWindow: (window: 'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'geoConcordance' | 'bookSequence' | 'entityAuthors' | 'entityPlaces' | 'summary' | null) => void;
+  activeWindow: 'builder' | 'browse' | 'visuals' | 'placeStats' | 'settings' | 'placeQa' | 'temporal' | 'geoConcordance' | 'bookSequence' | 'entityAuthors' | 'entityPlaces' | 'summary' | null;
+  setActiveWindow: (window: 'builder' | 'browse' | 'visuals' | 'placeStats' | 'settings' | 'placeQa' | 'temporal' | 'geoConcordance' | 'bookSequence' | 'entityAuthors' | 'entityPlaces' | 'summary' | null) => void;
   // Map properties
   places: PlacePoint[];
   totalPlaces: number;
@@ -134,6 +140,10 @@ interface CorpusContextType {
   setTemporalCutoffYear: (year: number | null) => void;
   temporalMode: 'color' | 'toggle';
   setTemporalMode: (mode: 'color' | 'toggle') => void;
+  selectedPlaceKindFilter: string | null;
+  setSelectedPlaceKindFilter: (kind: string | null) => void;
+  spuriousMentionsRatioThreshold: number;
+  setSpuriousMentionsRatioThreshold: (value: number) => void;
 }
 
 const CorpusContext = createContext<CorpusContextType | undefined>(undefined);
@@ -156,7 +166,7 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isVisualsOpen, setIsVisualsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isGeoConcordanceOpen, setIsGeoConcordanceOpen] = useState(false);
-  const [activeWindow, setActiveWindow] = useState<'builder' | 'browse' | 'visuals' | 'settings' | 'temporal' | 'geoConcordance' | 'bookSequence' | 'entityAuthors' | 'entityPlaces' | 'summary' | null>(null);
+  const [activeWindow, setActiveWindow] = useState<'builder' | 'browse' | 'visuals' | 'placeStats' | 'settings' | 'placeQa' | 'temporal' | 'geoConcordance' | 'bookSequence' | 'entityAuthors' | 'entityPlaces' | 'summary' | null>(null);
   
   const [places, setPlaces] = useState<PlacePoint[]>([]);
   const [totalPlaces, setTotalPlaces] = useState<number>(0);
@@ -171,6 +181,8 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [temporalEnabled, setTemporalEnabled] = useState<boolean>(false);
   const [temporalCutoffYear, setTemporalCutoffYear] = useState<number | null>(null);
   const [temporalMode, setTemporalMode] = useState<'color' | 'toggle'>('color');
+  const [selectedPlaceKindFilter, setSelectedPlaceKindFilter] = useState<string | null>(null);
+  const [spuriousMentionsRatioThreshold, setSpuriousMentionsRatioThreshold] = useState<number>(50);
 
   const API_URL = import.meta.env.VITE_API_URL || 'https://api.nb.no/dhlab/imag';
   const LEGACY_API_URL = import.meta.env.VITE_LEGACY_API_URL || 'https://api.nb.no/dhlab';
@@ -424,7 +436,11 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       temporalCutoffYear,
       setTemporalCutoffYear,
       temporalMode,
-      setTemporalMode
+      setTemporalMode,
+      selectedPlaceKindFilter,
+      setSelectedPlaceKindFilter,
+      spuriousMentionsRatioThreshold,
+      setSpuriousMentionsRatioThreshold
     }}>
       {children}
     </CorpusContext.Provider>

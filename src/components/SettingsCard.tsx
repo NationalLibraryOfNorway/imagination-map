@@ -13,13 +13,15 @@ export const SettingsCard: React.FC = () => {
     activeWindow,
     setActiveWindow,
     maxPlacesInView,
-    setMaxPlacesInView
+    setMaxPlacesInView,
+    spuriousMentionsRatioThreshold,
+    setSpuriousMentionsRatioThreshold
   } = useCorpus();
   const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: 'settings',
-    defaultLayout: { x: 20, y: 260, width: 320, height: 360 },
+    defaultLayout: { x: 20, y: 260, width: 320, height: 420 },
     minWidth: 280,
-    minHeight: 260
+    minHeight: 320
   });
 
   if (!isSettingsOpen) return null;
@@ -29,7 +31,7 @@ export const SettingsCard: React.FC = () => {
       size={{ width: layout.width, height: layout.height }}
       position={{ x: layout.x, y: layout.y }}
       minWidth={280}
-      minHeight={260}
+      minHeight={320}
       cancel=".no-drag"
       dragHandleClassName="drag-handle"
       className="settings-card"
@@ -67,6 +69,24 @@ export const SettingsCard: React.FC = () => {
           </div>
           <small className="settings-help">
             Styrer hvor mange steder som hentes inn i standard visning.
+          </small>
+        </div>
+
+        <div className="settings-section">
+          <label>Spurious-filter: mentions per bok ({spuriousMentionsRatioThreshold})</label>
+          <div style={{ padding: '0 8px' }}>
+            <Slider
+              min={5}
+              max={200}
+              step={5}
+              value={spuriousMentionsRatioThreshold}
+              onChange={(val) => setSpuriousMentionsRatioThreshold(val as number)}
+              trackStyle={[{ backgroundColor: '#f59e0b' }]}
+              handleStyle={[{ borderColor: '#f59e0b', backgroundColor: '#fff', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }]}
+            />
+          </div>
+          <small className="settings-help">
+            Steder med `mentions / antall bøker` over denne terskelen markeres som spuriøse i stedsoverblikket og kan skjules med egen toggle.
           </small>
         </div>
       </div>

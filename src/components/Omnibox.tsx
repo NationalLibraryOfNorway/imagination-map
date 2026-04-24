@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCorpus } from '../context/CorpusContext';
 import './Omnibox.css';
 
@@ -10,6 +10,17 @@ interface AuthorMatch {
   name: string;
   count: number;
   dhlabids: number[];
+}
+
+interface ResolvedPlaceMatch {
+  id: string;
+  canonicalName: string;
+  matchedForm?: string | null;
+  alternateForms?: string[];
+  country?: string | null;
+  lat?: number | null;
+  lon?: number | null;
+  matchType?: string | null;
 }
 
 function tokenize(text: string): string[] {
@@ -34,10 +45,12 @@ function splitAuthors(raw: string): string[] {
 }
 
 export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
-  const { allBooks, activeDhlabids, setActiveDhlabids, places } = useCorpus();
+  const { allBooks, activeDhlabids, setActiveDhlabids, places, API_URL } = useCorpus();
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
+  const [globalPlaceResults, setGlobalPlaceResults] = useState<ResolvedPlaceMatch[]>([]);
+  const [isPlacesLoading, setIsPlacesLoading] = useState(false);
 
   const authorIndex = useMemo(() => {
     const byAuthor = new Map<string, Set<number>>();
@@ -51,10 +64,18 @@ export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
     return byAuthor;
   }, [allBooks]);
 
+  const activePlaceById = useMemo(() => {
+    const byId = new Map<string, typeof places[number]>();
+    places.forEach((place) => {
+      byId.set(String(place.id), place);
+    });
+    return byId;
+  }, [places]);
+
   const results = useMemo(() => {
     const term = submittedQuery.trim();
     if (term.length < 2) {
-      return { books: [], authors: [], placeResults: [] };
+      return { books: [], authors: [] };
     }
     const tokens = tokenize(term);
 
@@ -78,13 +99,53 @@ export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
 
-    const placeResults = places
-      .filter((place) => hasAllTokens(`${place.token} ${place.name || ''}`, tokens))
-      .sort((a, b) => b.frequency - a.frequency)
-      .slice(0, 6);
+    return { books, authors };
+  }, [submittedQuery, allBooks, authorIndex]);
 
-    return { books, authors, placeResults };
-  }, [submittedQuery, allBooks, authorIndex, places]);
+  useEffect(() => {
+    const term = submittedQuery.trim();
+    if (term.length < 2) {
+      setGlobalPlaceResults([]);
+      setIsPlacesLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsPlacesLoading(true);
+
+    fetch(`${API_URL}/api/place/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: term,
+        limit: 6
+      })
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(text || `HTTP ${res.status}`);
+        }
+        return res.json() as Promise<{ matches?: ResolvedPlaceMatch[] }>;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setGlobalPlaceResults(Array.isArray(data?.matches) ? data.matches : []);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Could not resolve places for omnibox', error);
+        setGlobalPlaceResults([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsPlacesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [API_URL, submittedQuery]);
 
   const runSearch = () => {
     const term = query.trim();
@@ -104,7 +165,7 @@ export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
     setActiveDhlabids(Array.from(new Set([...activeDhlabids, ...dhlabids])));
   };
 
-  const hasAnyResults = results.books.length > 0 || results.authors.length > 0 || results.placeResults.length > 0;
+  const hasAnyResults = results.books.length > 0 || results.authors.length > 0 || globalPlaceResults.length > 0;
 
   return (
     <div className="omnibox-container">
@@ -131,27 +192,38 @@ export const Omnibox: React.FC<OmniboxProps> = ({ onSelectPlace }) => {
 
           {!hasAnyResults && <div className="omnibox-empty">Ingen treff for "{submittedQuery}".</div>}
 
-          {results.placeResults.length > 0 && (
+          {(isPlacesLoading || globalPlaceResults.length > 0) && (
             <section>
               <h4>Steder</h4>
-              {results.placeResults.map((place) => (
-                <div key={place.id} className="omnibox-row">
-                  <div>
-                    <strong>{place.token}</strong>
-                    <small>
-                      {place.frequency.toLocaleString()} treff i {place.doc_count.toLocaleString()} bøker
-                    </small>
+              {isPlacesLoading && <div className="omnibox-empty">Søker i alle steder...</div>}
+              {!isPlacesLoading && globalPlaceResults.map((place) => {
+                const placeInActiveCorpus = activePlaceById.get(String(place.id));
+                return (
+                  <div key={place.id} className="omnibox-row">
+                    <div>
+                      <strong>{place.matchedForm || place.canonicalName}</strong>
+                      <small>
+                        {place.canonicalName !== (place.matchedForm || place.canonicalName) ? `${place.canonicalName} · ` : ''}
+                        {place.country || 'ukjent land'}
+                        {placeInActiveCorpus
+                          ? ` · ${placeInActiveCorpus.frequency.toLocaleString()} treff i ${placeInActiveCorpus.doc_count.toLocaleString()} bøker i aktivt korpus`
+                          : ' · globalt stedstreff'}
+                      </small>
+                    </div>
+                    <button
+                      onClick={() => {
+                        onSelectPlace({
+                          token: place.matchedForm || place.canonicalName,
+                          placeId: place.id
+                        });
+                        setIsOpen(false);
+                      }}
+                    >
+                      Vis i kart
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      onSelectPlace({ token: place.token, placeId: place.id });
-                      setIsOpen(false);
-                    }}
-                  >
-                    Vis i kart
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </section>
           )}
 

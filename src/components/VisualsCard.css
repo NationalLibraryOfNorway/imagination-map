@@ -41,6 +41,12 @@
   gap: 14px;
 }
 
+.visuals-tab-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .visuals-section label {
   display: block;
   font-size: 0.82rem;
@@ -78,6 +84,115 @@
   flex-wrap: wrap;
 }
 
+.visuals-stats-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.visuals-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.visuals-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.visuals-stat-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.visuals-stat-label {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.visuals-stats-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.visuals-stats-subtitle {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.visuals-stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.visuals-stats-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.visuals-stats-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.visuals-stats-button.active {
+  border-color: rgba(37, 99, 235, 0.38);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.visuals-stats-button:disabled {
+  cursor: default;
+}
+
+.visuals-stats-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.visuals-stats-row-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.visuals-stats-row-meta {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.visuals-stats-row-share {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.visuals-stats-row-compact .visuals-stats-row-share {
+  min-width: 3.5rem;
+  text-align: right;
+}
+
 .visuals-help {
   display: block;
   margin-top: 8px;
@@ -85,10 +200,18 @@
   font-size: 0.74rem;
 }
 
+.visuals-help-error {
+  color: #b91c1c;
+}
+
 @media (max-width: 900px) {
   .visuals-controls button {
     min-width: 36px;
     min-height: 36px;
     font-size: 1rem;
+  }
+
+  .visuals-stats-grid {
+    grid-template-columns: 1fr;
   }
 }

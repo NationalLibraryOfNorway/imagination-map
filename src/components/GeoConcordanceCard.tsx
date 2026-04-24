@@ -64,6 +64,7 @@ interface NearQueryResult {
 
 const MAX_GROUPS = 120;
 const MAX_ROWS_PER_GROUP = 140;
+const MAX_PROXIMITY = 25;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -152,6 +153,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
   const [groupSort, setGroupSort] = useState<'count' | 'name'>('count');
   const lastQuerySignatureRef = useRef('');
   const lastWindowRef = useRef(8);
+  const effectiveProximity = Math.min(MAX_PROXIMITY, Math.max(1, proximity));
   const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: 'geoConcordance',
     defaultLayout: { x: 740, y: 24, width: 520, height: 560 },
@@ -275,7 +277,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
   );
 
   const toNbSearchLink = (bookId: number, surface: string) => {
-    const searchText = buildNbNearSearchText(surface, queryTermsForNb, proximity);
+    const searchText = buildNbNearSearchText(surface, queryTermsForNb, effectiveProximity);
     const meta = metadataById.get(bookId);
     if (meta?.urn) {
       return `https://www.nb.no/items/${encodeURIComponent(meta.urn)}?searchText=${encodeURIComponent(searchText)}`;
@@ -314,9 +316,9 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
           schema: 'unigrams',
           symmetric: true,
           excludeSelf: false,
-          window: proximity,
-          before: proximity,
-          after: proximity
+          window: effectiveProximity,
+          before: effectiveProximity,
+          after: effectiveProximity
         })
       });
       if (!res.ok) {
@@ -391,7 +393,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     let nextRendered = result.rendered;
 
     const shouldMergeForMonotonicIncrease =
-      currentSignature === lastQuerySignatureRef.current && proximity > lastWindowRef.current;
+      currentSignature === lastQuerySignatureRef.current && effectiveProximity > lastWindowRef.current;
 
     if (shouldMergeForMonotonicIncrease) {
       const seenRows = new Set<string>();
@@ -434,7 +436,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     }
     setCollapsedGroups({});
     lastQuerySignatureRef.current = currentSignature;
-    lastWindowRef.current = proximity;
+    lastWindowRef.current = effectiveProximity;
     setLastElapsedMs(performance.now() - queryStart);
   };
 
@@ -537,7 +539,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
               <span>Nærhet</span>
               <select
                 value={proximity}
-                onChange={(e) => setProximity(Number(e.target.value) || 8)}
+                onChange={(e) => setProximity(Math.min(MAX_PROXIMITY, Number(e.target.value) || 8))}
                 disabled={isLoading}
               >
                 <option value={5}>5</option>
@@ -546,7 +548,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
                 <option value={12}>12</option>
                 <option value={15}>15</option>
                 <option value={20}>20</option>
-                <option value={30}>30</option>
+                <option value={25}>25</option>
               </select>
             </label>
             <label className="geo-conc-proximity">

@@ -3,12 +3,33 @@ import type { BookMetadata } from '../context/CorpusContext';
 interface FirstYearFetchParams {
   apiUrl: string;
   activeBooksMetadata: BookMetadata[];
-  maxPlacesInView: number;
-  totalPlaces: number;
+  targetPlaceIds?: string[];
 }
 
 const firstYearCache = new Map<string, Map<string, number>>();
 const inflightFetches = new Map<string, Promise<Map<string, number>>>();
+
+const normalizePlaceId = (placeId: string): string => placeId.trim().toLowerCase();
+
+const normalizeFirstYearRow = (row: any): { placeId: string; year: number } | null => {
+  const placeIdRaw = row?.place_id ?? row?.placeId ?? row?.id ?? row?.nb_place_id;
+  const yearRaw = row?.year ?? row?.first_year ?? row?.firstYear;
+  const placeId = normalizePlaceId(String(placeIdRaw ?? ''));
+  const year = Number(yearRaw);
+  if (!placeId || !/^\d+$/.test(placeId) || !Number.isFinite(year)) return null;
+  return { placeId, year: Math.round(year) };
+};
+
+const filterFirstYearMap = (input: Map<string, number>, targetPlaceIds?: string[]): Map<string, number> => {
+  if (!targetPlaceIds || targetPlaceIds.length === 0) return input;
+  const allowed = new Set(targetPlaceIds.map(normalizePlaceId).filter(Boolean));
+  const out = new Map<string, number>();
+  allowed.forEach((placeId) => {
+    const year = input.get(placeId);
+    if (typeof year === 'number') out.set(placeId, year);
+  });
+  return out;
+};
 
 export function buildCorpusTemporalKey(activeBooksMetadata: BookMetadata[]): string {
   if (activeBooksMetadata.length === 0) return '';
@@ -18,13 +39,21 @@ export function buildCorpusTemporalKey(activeBooksMetadata: BookMetadata[]): str
     .join(',');
 }
 
-export function hasFirstYearCacheForCorpus(activeBooksMetadata: BookMetadata[]): boolean {
+export function hasFirstYearCacheForCorpus(activeBooksMetadata: BookMetadata[], _targetPlaceIds?: string[]): boolean {
   const corpusKey = buildCorpusTemporalKey(activeBooksMetadata);
   if (!corpusKey) return false;
   return firstYearCache.has(corpusKey);
 }
 
-export function isFirstYearFetchInFlight(activeBooksMetadata: BookMetadata[]): boolean {
+export function getFirstYearCacheForCorpus(activeBooksMetadata: BookMetadata[], targetPlaceIds?: string[]): Map<string, number> | null {
+  const corpusKey = buildCorpusTemporalKey(activeBooksMetadata);
+  if (!corpusKey) return null;
+  const cached = firstYearCache.get(corpusKey);
+  if (!cached) return null;
+  return filterFirstYearMap(cached, targetPlaceIds);
+}
+
+export function isFirstYearFetchInFlight(activeBooksMetadata: BookMetadata[], _targetPlaceIds?: string[]): boolean {
   const corpusKey = buildCorpusTemporalKey(activeBooksMetadata);
   if (!corpusKey) return false;
   return inflightFetches.has(corpusKey);
@@ -33,47 +62,39 @@ export function isFirstYearFetchInFlight(activeBooksMetadata: BookMetadata[]): b
 export async function fetchFirstYearByTokenForCorpus({
   apiUrl,
   activeBooksMetadata,
-  maxPlacesInView,
-  totalPlaces
+  targetPlaceIds
 }: FirstYearFetchParams): Promise<Map<string, number>> {
   const corpusKey = buildCorpusTemporalKey(activeBooksMetadata);
   if (!corpusKey) return new Map();
 
+  const activeDhlabids = activeBooksMetadata.map((book) => book.dhlabid);
   const cached = firstYearCache.get(corpusKey);
-  if (cached) return cached;
+  if (cached) return filterFirstYearMap(cached, targetPlaceIds);
 
   const inflight = inflightFetches.get(corpusKey);
-  if (inflight) return inflight;
+  if (inflight) {
+    const resolved = await inflight;
+    return filterFirstYearMap(resolved, targetPlaceIds);
+  }
 
   const task = (async () => {
-    const idsByYear = new Map<number, number[]>();
-    activeBooksMetadata.forEach((book) => {
-      if (book.year === null) return;
-      const year = Number(book.year);
-      if (!Number.isFinite(year)) return;
-      if (!idsByYear.has(year)) idsByYear.set(year, []);
-      idsByYear.get(year)?.push(book.dhlabid);
+    const res = await fetch(`${apiUrl}/api/places/first-year`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dhlabids: activeDhlabids })
     });
-    const sortedYears = Array.from(idsByYear.keys()).sort((a, b) => a - b);
-    if (sortedYears.length === 0) return new Map<string, number>();
-
+    if (!res.ok) throw new Error('Failed first-year places fetch');
+    const data = await res.json();
+    const rows = Array.isArray(data?.rows) ? data.rows : [];
     const firstSeen = new Map<string, number>();
-    for (const year of sortedYears) {
-      const ids = idsByYear.get(year) || [];
-      if (ids.length === 0) continue;
-      const res = await fetch(`${apiUrl}/api/places`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dhlabids: ids, maxPlaces: Math.max(maxPlacesInView, totalPlaces) })
-      });
-      if (!res.ok) throw new Error('Failed first-year places fetch');
-      const data = await res.json();
-      const rows = (data.places || []) as Array<{ token: string }>;
-      rows.forEach((row) => {
-        if (!firstSeen.has(row.token)) firstSeen.set(row.token, year);
-      });
-    }
-
+    rows.forEach((row: any) => {
+      const normalized = normalizeFirstYearRow(row);
+      if (!normalized) return;
+      const existing = firstSeen.get(normalized.placeId);
+      if (typeof existing !== 'number' || normalized.year < existing) {
+        firstSeen.set(normalized.placeId, normalized.year);
+      }
+    });
     return firstSeen;
   })();
 
@@ -81,7 +102,7 @@ export async function fetchFirstYearByTokenForCorpus({
   try {
     const resolved = await task;
     firstYearCache.set(corpusKey, resolved);
-    return resolved;
+    return filterFirstYearMap(resolved, targetPlaceIds);
   } finally {
     inflightFetches.delete(corpusKey);
   }

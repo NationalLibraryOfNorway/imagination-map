@@ -46,6 +46,11 @@ function toCount(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function getMentionsPerBookRatio(place: { frequency: number; doc_count: number }): number {
+  if (!Number.isFinite(place.doc_count) || place.doc_count <= 0) return place.frequency;
+  return place.frequency / place.doc_count;
+}
+
 export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
   mode,
   initialTab = 'list',
@@ -62,7 +67,8 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
     isPlacesLoading,
     API_URL,
     activeWindow,
-    setActiveWindow
+    setActiveWindow,
+    spuriousMentionsRatioThreshold
   } = useCorpus();
   const [activeTab, setActiveTab] = useState<'list' | 'images'>(initialTab);
   const [selectedKey, setSelectedKey] = useState<string>('');
@@ -85,6 +91,7 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [placePage, setPlacePage] = useState(1);
   const [allPlaceRows, setAllPlaceRows] = useState<typeof places | null>(null);
+  const [hideSpuriousPlaces, setHideSpuriousPlaces] = useState(true);
   const normalizePlaceRows = (rows: any[]) =>
     (rows || [])
       .map((row) => ({
@@ -233,6 +240,9 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
   const placeRows = useMemo(() => {
     const query = placeQuery.trim().toLowerCase();
     let rows = [...placesData];
+    if (hideSpuriousPlaces) {
+      rows = rows.filter((place) => getMentionsPerBookRatio(place) <= spuriousMentionsRatioThreshold);
+    }
     if (query) {
       rows = rows.filter((place) =>
         (place.token || '').toLowerCase().includes(query) ||
@@ -248,7 +258,12 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
       return placeSortDir === 'asc' ? cmp : -cmp;
     });
     return rows;
-  }, [placesData, placeQuery, placeSortKey, placeSortDir]);
+  }, [placesData, hideSpuriousPlaces, placeQuery, placeSortKey, placeSortDir, spuriousMentionsRatioThreshold]);
+
+  const spuriousPlaceCount = useMemo(
+    () => placesData.filter((place) => getMentionsPerBookRatio(place) > spuriousMentionsRatioThreshold).length,
+    [placesData, spuriousMentionsRatioThreshold]
+  );
 
   const placeRowsView = useMemo(() => {
     if (!sampleEnabled || placeRows.length <= sampleSize) return placeRows;
@@ -286,7 +301,7 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
 
   useEffect(() => {
     setPlacePage(1);
-  }, [placeQuery, sampleEnabled, sampleSize, rowsPerPage]);
+  }, [placeQuery, sampleEnabled, sampleSize, rowsPerPage, hideSpuriousPlaces, spuriousMentionsRatioThreshold]);
 
   useEffect(() => {
     if (placePage > placeTotalPages) setPlacePage(placeTotalPages);
@@ -501,6 +516,14 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
             >
               {sampleEnabled ? 'Sample på' : 'Sample av'}
             </button>
+            <button
+              type="button"
+              className={`entity-action ${hideSpuriousPlaces ? 'active' : ''}`}
+              onClick={() => setHideSpuriousPlaces((v) => !v)}
+              title="Skjul steder med uvanlig høy mentions per bok-ratio"
+            >
+              {hideSpuriousPlaces ? 'Hide spurious på' : 'Hide spurious av'}
+            </button>
             {sampleEnabled && (
               <>
                 <select
@@ -536,6 +559,11 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
             {sampleEnabled && placeRows.length > sampleSize
               ? ` (sample fra ${placeRows.length.toLocaleString()})`
               : ` (totalt ${placeRows.length.toLocaleString()})`}
+            {spuriousPlaceCount > 0 && (
+              <span>
+                {' '}| {spuriousPlaceCount.toLocaleString()} spuriøse ved terskel {spuriousMentionsRatioThreshold}
+              </span>
+            )}
           </div>
 
           <div className="entity-places-table-wrap">
@@ -572,10 +600,22 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
               <tbody>
                 {placePageRows.map(({ place, globalIndex }) => (
                   <tr key={`${place.id}-${place.token}-${globalIndex}`} className={selectedKey === place.token ? 'active' : ''}>
-                    <td>{place.token}</td>
+                    <td>
+                      <div className="entity-place-name-cell">
+                        <span>{place.token}</span>
+                        {getMentionsPerBookRatio(place) > spuriousMentionsRatioThreshold && (
+                          <span className="entity-spurious-badge">spuriøs</span>
+                        )}
+                      </div>
+                    </td>
                     <td>{place.name || '-'}</td>
                     <td>{place.doc_count.toLocaleString()}</td>
-                    <td>{place.frequency.toLocaleString()}</td>
+                    <td>
+                      <div>{place.frequency.toLocaleString()}</div>
+                      <div className="entity-cell-subtle">
+                        {getMentionsPerBookRatio(place).toFixed(1)} / bok
+                      </div>
+                    </td>
                     <td>
                       <button
                         type="button"

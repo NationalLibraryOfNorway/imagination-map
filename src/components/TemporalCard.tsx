@@ -4,13 +4,15 @@ import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { useCorpus } from '../context/CorpusContext';
 import { useWindowLayout } from '../utils/windowLayout';
-import { fetchFirstYearByTokenForCorpus, hasFirstYearCacheForCorpus, isFirstYearFetchInFlight } from '../utils/temporal';
+import { getFirstYearCacheForCorpus, hasFirstYearCacheForCorpus, isFirstYearFetchInFlight } from '../utils/temporal';
 import './TemporalCard.css';
 
 interface TemporalCardProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const normalizeTemporalPlaceId = (placeId: string): string => placeId.trim().toLowerCase();
 
 export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) => {
   const {
@@ -21,9 +23,7 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
     setTemporalCutoffYear,
     temporalMode,
     setTemporalMode,
-    API_URL,
-    maxPlacesInView,
-    totalPlaces,
+    places,
     activeWindow,
     setActiveWindow
   } = useCorpus();
@@ -32,8 +32,12 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
   const minYear = years.length > 0 ? Math.min(...years) : 1800;
   const maxYear = years.length > 0 ? Math.max(...years) : 2025;
   const effectiveYear = temporalCutoffYear ?? maxYear;
+  const temporalTargetPlaceIds = useMemo(
+    () => Array.from(new Set(places.map((place) => normalizeTemporalPlaceId(place.id)).filter(Boolean))),
+    [places]
+  );
   const [isTemporalMappingComputing, setIsTemporalMappingComputing] = useState(false);
-  const [firstYearByToken, setFirstYearByToken] = useState<Map<string, number> | null>(null);
+  const [firstYearByPlaceId, setFirstYearByPlaceId] = useState<Map<string, number> | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const { layout, onDrag, onDragStop, onResizeStop } = useWindowLayout({
     key: 'temporal',
@@ -75,33 +79,19 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
 
   useEffect(() => {
     if (!isOpen || !temporalEnabled || activeBooksMetadata.length === 0) {
-      setFirstYearByToken(null);
+      setFirstYearByPlaceId(null);
       return undefined;
     }
 
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const firstSeen = await fetchFirstYearByTokenForCorpus({
-          apiUrl: API_URL,
-          activeBooksMetadata,
-          maxPlacesInView,
-          totalPlaces
-        });
-        if (!cancelled) setFirstYearByToken(firstSeen);
-      } catch (err) {
-        if (!cancelled) {
-          console.error(err);
-          setFirstYearByToken(null);
-        }
-      }
+    const syncFromCache = () => {
+      const cached = getFirstYearCacheForCorpus(activeBooksMetadata, temporalTargetPlaceIds);
+      setFirstYearByPlaceId(cached);
     };
 
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, temporalEnabled, activeBooksMetadata, API_URL, maxPlacesInView, totalPlaces]);
+    syncFromCache();
+    const timer = window.setInterval(syncFromCache, 250);
+    return () => window.clearInterval(timer);
+  }, [isOpen, temporalEnabled, activeBooksMetadata, temporalTargetPlaceIds]);
 
   useEffect(() => {
     if (!isOpen || !temporalEnabled) {
@@ -110,20 +100,20 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
     }
 
     const updateStatus = () => {
-      const hasCache = hasFirstYearCacheForCorpus(activeBooksMetadata);
-      const inflight = isFirstYearFetchInFlight(activeBooksMetadata);
+      const hasCache = hasFirstYearCacheForCorpus(activeBooksMetadata, temporalTargetPlaceIds);
+      const inflight = isFirstYearFetchInFlight(activeBooksMetadata, temporalTargetPlaceIds);
       setIsTemporalMappingComputing(!hasCache && inflight);
     };
 
     updateStatus();
     const timer = window.setInterval(updateStatus, 250);
     return () => window.clearInterval(timer);
-  }, [isOpen, temporalEnabled, activeBooksMetadata]);
+  }, [isOpen, temporalEnabled, activeBooksMetadata, temporalTargetPlaceIds]);
 
   const cumulativeSeries = useMemo(() => {
-    if (!firstYearByToken || minYear > maxYear) return [] as Array<{ year: number; cumulative: number }>;
+    if (!firstYearByPlaceId || minYear > maxYear) return [] as Array<{ year: number; cumulative: number }>;
     const yearlyCounts = new Map<number, number>();
-    firstYearByToken.forEach((year) => {
+    firstYearByPlaceId.forEach((year) => {
       if (!Number.isFinite(year)) return;
       const y = Math.round(year);
       if (y < minYear || y > maxYear) return;
@@ -137,7 +127,7 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
       points.push({ year: y, cumulative: running });
     }
     return points;
-  }, [firstYearByToken, minYear, maxYear]);
+  }, [firstYearByPlaceId, minYear, maxYear]);
 
   const chartGeometry = useMemo(() => {
     const width = 320;

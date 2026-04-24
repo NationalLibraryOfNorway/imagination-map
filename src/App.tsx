@@ -4,14 +4,17 @@ import { StatsHUD } from './components/StatsHUD'
 import { CorpusBuilderCard } from './components/CorpusBuilderCard'
 import { MapMarkers } from './components/MapMarkers'
 import { HeatmapLayer } from './components/HeatmapLayer'
+import { SelectedPlaceOverlay } from './components/SelectedPlaceOverlay'
 import { PlaceSummaryCard } from './components/PlaceSummaryCard'
 import { CorpusBrowseTable } from './components/CorpusBrowseTable'
 import { EntityInspectorPanel } from './components/EntityInspectorPanel'
 import { Omnibox } from './components/Omnibox'
 import { VisualsCard } from './components/VisualsCard'
+import { PlaceStatsCard } from './components/PlaceStatsCard'
 import { VisualsLauncherChip } from './components/VisualsLauncherChip'
 import { SettingsLauncherChip } from './components/SettingsLauncherChip'
 import { SettingsCard } from './components/SettingsCard'
+import { PlaceQaCard } from './components/PlaceQaCard'
 import { TemporalCard } from './components/TemporalCard'
 import { GeoConcordanceCard } from './components/GeoConcordanceCard'
 import { BookSequenceCard } from './components/BookSequenceCard'
@@ -39,7 +42,8 @@ function App() {
     setMapVisualMode,
     mapVisualMode,
     activeWindow,
-    setActiveWindow
+    setActiveWindow,
+    selectedPlaceKindFilter
   } = useCorpus();
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(null);
   const [isAuthorsInspectorOpen, setIsAuthorsInspectorOpen] = useState(false);
@@ -58,6 +62,8 @@ function App() {
   const [geoFocusPlaceIds, setGeoFocusPlaceIds] = useState<string[]>([]);
   const [geoFocusDimOthers, setGeoFocusDimOthers] = useState(true);
   const [geoFocusStyle, setGeoFocusStyle] = useState<'fill' | 'ring'>('ring');
+  const [isPlaceStatsOpen, setIsPlaceStatsOpen] = useState(false);
+  const [isPlaceQaOpen, setIsPlaceQaOpen] = useState(false);
 
   const openBookSequenceForBook = (bookId: number) => {
     setSequenceBookId(bookId);
@@ -104,6 +110,7 @@ function App() {
             }}
           />
         )}
+        <SelectedPlaceOverlay selectedPlace={selectedPlace} />
       </MapContainer>
 
       {/* Floating UI Elements */}
@@ -114,6 +121,7 @@ function App() {
         }}
       />
       <VisualsLauncherChip
+        hasActivePlaceKindFilter={selectedPlaceKindFilter !== null}
         onVisualsDefaultClick={() => {
           if (isVisualsOpen && activeWindow === 'visuals') {
             setIsVisualsOpen(false);
@@ -121,6 +129,15 @@ function App() {
           } else {
             setIsVisualsOpen(true);
             setActiveWindow('visuals');
+          }
+        }}
+        onVisualsPlaceStatsClick={() => {
+          if (isPlaceStatsOpen && activeWindow === 'placeStats') {
+            setIsPlaceStatsOpen(false);
+            setActiveWindow(null);
+          } else {
+            setIsPlaceStatsOpen(true);
+            setActiveWindow('placeStats');
           }
         }}
         onVisualsMapClick={() => {
@@ -147,6 +164,15 @@ function App() {
           } else {
             setIsSettingsOpen(true);
             setActiveWindow('settings');
+          }
+        }}
+        onPlaceQaClick={() => {
+          if (isPlaceQaOpen && activeWindow === 'placeQa') {
+            setIsPlaceQaOpen(false);
+            setActiveWindow(null);
+          } else {
+            setIsPlaceQaOpen(true);
+            setActiveWindow('placeQa');
           }
         }}
         onSuggestChangeClick={() => {
@@ -253,7 +279,21 @@ function App() {
       <div className="workspace-zone">
         <CorpusBuilderCard />
         <VisualsCard />
+        <PlaceStatsCard
+          isOpen={isPlaceStatsOpen}
+          onClose={() => {
+            setIsPlaceStatsOpen(false);
+            if (activeWindow === 'placeStats') setActiveWindow(null);
+          }}
+        />
         <SettingsCard />
+        <PlaceQaCard
+          isOpen={isPlaceQaOpen}
+          onClose={() => {
+            setIsPlaceQaOpen(false);
+            if (activeWindow === 'placeQa') setActiveWindow(null);
+          }}
+        />
         <GeoConcordanceCard
           isOpen={isGeoConcordanceOpen}
           onClose={() => {

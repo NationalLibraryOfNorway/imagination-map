@@ -10,6 +10,8 @@ interface HeatmapLayerProps {
   useFullDataset?: boolean;
 }
 
+const normalizeTemporalPlaceId = (placeId: string): string => placeId.trim().toLowerCase();
+
 const normalizePlaces = (rows: any[]): any[] =>
   (rows || [])
     .map((row) => ({
@@ -42,12 +44,13 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
     temporalMode,
     compareSegmentsEnabled,
     segmentABookIds,
-    segmentBBookIds
+    segmentBBookIds,
+    selectedPlaceKindFilter
   } = useCorpus();
   const [fullPlaces, setFullPlaces] = useState<typeof places | null>(null);
   const [comparePlaces, setComparePlaces] = useState<{ A: typeof places; B: typeof places } | null>(null);
-  const [firstYearByToken, setFirstYearByToken] = useState<Map<string, number> | null>(null);
-  const temporalMappingReady = !temporalEnabled || firstYearByToken !== null;
+  const [firstYearByPlaceId, setFirstYearByPlaceId] = useState<Map<string, number> | null>(null);
+  const temporalMappingReady = !temporalEnabled || firstYearByPlaceId !== null;
   const compareReady = compareSegmentsEnabled && segmentABookIds.length > 0 && segmentBBookIds.length > 0;
   const heatStrength = Math.max(0.5, Math.min(3, heatmapStrength / 100));
   const boostIntensity = (value: number): number => {
@@ -143,35 +146,46 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
   }, [useFullDataset, activeDhlabids, totalPlaces, places, API_URL]);
 
   const sourcePlaces = useFullDataset ? (fullPlaces || places) : places;
+  const filteredSourcePlaces = useMemo(
+    () => (
+      selectedPlaceKindFilter
+        ? sourcePlaces.filter((place) => place.kind === selectedPlaceKindFilter)
+        : sourcePlaces
+    ),
+    [sourcePlaces, selectedPlaceKindFilter]
+  );
+  const temporalTargetPlaceIds = useMemo(
+    () => Array.from(new Set(filteredSourcePlaces.map((place) => normalizeTemporalPlaceId(place.id)).filter(Boolean))),
+    [filteredSourcePlaces]
+  );
   useEffect(() => {
     if (!temporalEnabled) {
-      setFirstYearByToken(null);
+      setFirstYearByPlaceId(null);
       return;
     }
 
     // Avoid rendering with stale year mapping while recomputing.
-    setFirstYearByToken(null);
+    setFirstYearByPlaceId(null);
     let cancelled = false;
     const run = async () => {
       const firstSeen = await fetchFirstYearByTokenForCorpus({
         apiUrl: API_URL,
         activeBooksMetadata,
-        maxPlacesInView,
-        totalPlaces
+        targetPlaceIds: temporalTargetPlaceIds
       });
-      if (!cancelled) setFirstYearByToken(firstSeen);
+      if (!cancelled) setFirstYearByPlaceId(firstSeen);
     };
 
     run().catch((err) => {
       if (cancelled) return;
       console.error(err);
-      setFirstYearByToken(null);
+      setFirstYearByPlaceId(null);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [temporalEnabled, activeBooksMetadata, API_URL, maxPlacesInView, totalPlaces]);
+  }, [temporalEnabled, activeBooksMetadata, API_URL, temporalTargetPlaceIds]);
 
   const toHeatPoints = (inputPlaces: typeof places, opts?: { ignoreTemporal?: boolean }): [number, number, number][] => {
     if (!temporalMappingReady) return [];
@@ -181,11 +195,10 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
     const temporalPlaces = inputPlaces.filter((place) => {
       if (ignoreTemporal) return true;
       if (!temporalEnabled || temporalCutoffYear === null) return true;
-      const firstYear = firstYearByToken?.get(place.token);
+      const firstYear = firstYearByPlaceId?.get(normalizeTemporalPlaceId(place.id));
       const isAfterOnly = typeof firstYear === 'number' && firstYear >= temporalCutoffYear;
-      const isUnknown = typeof firstYear !== 'number';
       if (temporalMode === 'toggle') {
-        return !(isAfterOnly || isUnknown);
+        return !isAfterOnly;
       }
       return true;
     });
@@ -206,7 +219,7 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
         const norm = logMax > logMin
           ? (Math.log1p(place.frequency) - logMin) / (logMax - logMin)
           : 0.35;
-        const firstYear = firstYearByToken?.get(place.token);
+        const firstYear = firstYearByPlaceId?.get(normalizeTemporalPlaceId(place.id));
         if (ignoreTemporal) {
           const intensity = boostIntensity(0.2 + norm * 0.8);
           return [place.lat, place.lon, intensity];
@@ -215,36 +228,39 @@ export const HeatmapLayer: React.FC<HeatmapLayerProps> = ({ useFullDataset = fal
           && temporalCutoffYear !== null
           && typeof firstYear === 'number'
           && firstYear >= temporalCutoffYear;
-        const isUnknown = temporalEnabled
-          && temporalCutoffYear !== null
-          && typeof firstYear !== 'number';
-        const temporalFactor = temporalEnabled && temporalMode === 'color' && (isAfterOnly || isUnknown) ? 0.18 : 1;
+        const temporalFactor = temporalEnabled && temporalMode === 'color' && isAfterOnly ? 0.18 : 1;
         const intensity = boostIntensity((0.2 + norm * 0.8) * temporalFactor);
         return [place.lat, place.lon, intensity];
       });
   };
 
   const points = useMemo<[number, number, number][]>(() => {
-    return toHeatPoints(sourcePlaces);
+    return toHeatPoints(filteredSourcePlaces);
   }, [
-    sourcePlaces,
+    filteredSourcePlaces,
     downlightPercentile,
     temporalEnabled,
     temporalCutoffYear,
     temporalMode,
-    firstYearByToken,
+    firstYearByPlaceId,
     temporalMappingReady
   ]);
 
   const comparePointsA = useMemo<[number, number, number][]>(() => {
     if (!compareReady || !comparePlaces) return [];
-    return toHeatPoints(comparePlaces.A, { ignoreTemporal: true });
-  }, [compareReady, comparePlaces, downlightPercentile, temporalEnabled, temporalCutoffYear, temporalMode, firstYearByToken, temporalMappingReady]);
+    const source = selectedPlaceKindFilter
+      ? comparePlaces.A.filter((place) => place.kind === selectedPlaceKindFilter)
+      : comparePlaces.A;
+    return toHeatPoints(source, { ignoreTemporal: true });
+  }, [compareReady, comparePlaces, downlightPercentile, temporalEnabled, temporalCutoffYear, temporalMode, firstYearByPlaceId, temporalMappingReady, selectedPlaceKindFilter]);
 
   const comparePointsB = useMemo<[number, number, number][]>(() => {
     if (!compareReady || !comparePlaces) return [];
-    return toHeatPoints(comparePlaces.B, { ignoreTemporal: true });
-  }, [compareReady, comparePlaces, downlightPercentile, temporalEnabled, temporalCutoffYear, temporalMode, firstYearByToken, temporalMappingReady]);
+    const source = selectedPlaceKindFilter
+      ? comparePlaces.B.filter((place) => place.kind === selectedPlaceKindFilter)
+      : comparePlaces.B;
+    return toHeatPoints(source, { ignoreTemporal: true });
+  }, [compareReady, comparePlaces, downlightPercentile, temporalEnabled, temporalCutoffYear, temporalMode, firstYearByPlaceId, temporalMappingReady, selectedPlaceKindFilter]);
 
   useEffect(() => {
     if (compareReady) {
