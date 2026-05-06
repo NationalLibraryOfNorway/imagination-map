@@ -45,19 +45,25 @@
     font-size: 1.2rem;
     color: #64748b;
     transition: color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0;
-    min-width: 28px;
-    min-height: 28px;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 10px;
+    touch-action: manipulation;
 }
 .summary-header button:hover {
     color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
 }
 
 @media (max-width: 900px) {
     .summary-header button {
-        min-width: 36px;
-        min-height: 36px;
-        font-size: 1rem;
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1.05rem;
     }
 }
 

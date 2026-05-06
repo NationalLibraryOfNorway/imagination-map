@@ -40,17 +40,20 @@
     font-size: 1.2rem;
     color: #64748b;
     transition: color 0.2s;
-    min-width: 28px;
-    min-height: 28px;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0;
+    border-radius: 8px;
 }
 .table-controls button:hover {
-    color: #ef4444;
+    color: #0f172a;
+    background: rgba(148, 163, 184, 0.12);
 }
 
 @media (max-width: 900px) {
     .table-controls button {
-        min-width: 36px;
-        min-height: 36px;
+        min-width: 40px;
+        min-height: 40px;
         font-size: 1rem;
     }
 }

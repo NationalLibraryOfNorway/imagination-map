@@ -8,6 +8,8 @@ import './BookSequenceCard.css';
 
 interface BookSequenceCardProps {
   isOpen: boolean;
+  isMinimized?: boolean;
+  onMinimize?: () => void;
   onClose: () => void;
   onExitMode: () => void;
   selectedBookId: number | null;
@@ -28,6 +30,8 @@ interface BookSequenceCardProps {
 
 export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
   isOpen,
+  isMinimized = false,
+  onMinimize,
   onClose,
   onExitMode,
   selectedBookId,
@@ -114,7 +118,7 @@ export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, selectedBookId]);
 
-  if (!isOpen) return null;
+  if (!isOpen || isMinimized) return null;
 
   return (
     <Rnd
@@ -136,9 +140,12 @@ export const BookSequenceCard: React.FC<BookSequenceCardProps> = ({
           <div className="book-sequence-title">
             <i className="fas fa-route"></i> Bokforløp
           </div>
-          <div className="book-sequence-controls no-drag">
-            <button onClick={onClose} title="Minimer">
+          <div className="book-sequence-controls no-drag window-header-controls">
+            <button className="window-header-button" onClick={() => (onMinimize ? onMinimize() : onClose())} title="Minimer">
               <i className="fas fa-window-minimize"></i>
+            </button>
+            <button className="window-header-button" onClick={onClose} title="Lukk">
+              <i className="fas fa-times"></i>
             </button>
           </div>
         </div>

@@ -40,7 +40,23 @@
   background: transparent;
   color: #64748b;
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 0;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 8px;
+}
+
+.book-sequence-controls button:hover {
+  color: #0f172a;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+@media (max-width: 900px) {
+  .book-sequence-controls button {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 1rem;
+  }
 }
 
 .book-sequence-body {

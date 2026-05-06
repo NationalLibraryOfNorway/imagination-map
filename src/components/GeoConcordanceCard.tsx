@@ -7,6 +7,8 @@ import './GeoConcordanceCard.css';
 
 interface GeoConcordanceCardProps {
   isOpen: boolean;
+  isMinimized?: boolean;
+  onMinimize?: () => void;
   onClose: () => void;
   onApplyMapFocus: (payload: { placeIds: string[]; dimOthers: boolean; style: 'fill' | 'ring' }) => void;
   onClearMapFocus: () => void;
@@ -133,6 +135,8 @@ function buildNbNearSearchText(surface: string, terms: string[], proximity: numb
 
 export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
   isOpen,
+  isMinimized = false,
+  onMinimize,
   onClose,
   onApplyMapFocus,
   onClearMapFocus,
@@ -495,7 +499,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     });
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || isMinimized) return null;
 
   return (
     <Rnd
@@ -515,9 +519,12 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
       <div className="geo-conc-card">
         <div className="geo-conc-header drag-handle" onMouseDown={() => setActiveWindow('geoConcordance')}>
           <div className="geo-conc-title"><i className="fas fa-stream"></i> Geo-konkordans</div>
-          <div className="geo-conc-controls no-drag">
-            <button onClick={onClose} title="Minimer">
+          <div className="geo-conc-controls no-drag window-header-controls">
+            <button className="window-header-button" onClick={() => (onMinimize ? onMinimize() : onClose())} title="Minimer">
               <i className="fas fa-window-minimize"></i>
+            </button>
+            <button className="window-header-button" onClick={onClose} title="Lukk">
+              <i className="fas fa-times"></i>
             </button>
           </div>
         </div>

@@ -33,6 +33,23 @@
   background: transparent;
   color: #64748b;
   cursor: pointer;
+  padding: 0;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 8px;
+}
+
+.geo-conc-controls button:hover {
+  color: #0f172a;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+@media (max-width: 900px) {
+  .geo-conc-controls button {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 1rem;
+  }
 }
 
 .geo-conc-body {

@@ -8,7 +8,17 @@ import { useCorpus } from '../context/CorpusContext';
 import { useWindowLayout } from '../utils/windowLayout';
 import './CorpusBuilderCard.css';
 
-export const CorpusBuilderCard: React.FC = () => {
+interface CorpusBuilderCardProps {
+    isMinimized?: boolean;
+    onMinimize?: () => void;
+    onClose?: () => void;
+}
+
+export const CorpusBuilderCard: React.FC<CorpusBuilderCardProps> = ({
+    isMinimized = false,
+    onMinimize,
+    onClose
+}) => {
     const {
         allBooks,
         setActiveDhlabids,
@@ -245,7 +255,7 @@ export const CorpusBuilderCard: React.FC = () => {
         reader.readAsArrayBuffer(file);
     };
 
-    if (!isCorpusBuilderOpen) return null;
+    if (!isCorpusBuilderOpen || isMinimized) return null;
 
     return (
         <Rnd
@@ -268,9 +278,20 @@ export const CorpusBuilderCard: React.FC = () => {
                 <div className="card-title">
                     <i className="fas fa-tools"></i> Corpus Builder
                 </div>
-                <div className="card-controls no-drag">
-                    <button onClick={() => setIsCorpusBuilderOpen(false)} title="Minimer til chip">
+                <div className="card-controls no-drag window-header-controls">
+                    <button
+                        className="window-header-button"
+                        onClick={() => (onMinimize ? onMinimize() : setIsCorpusBuilderOpen(false))}
+                        title="Minimer"
+                    >
                         <i className="fas fa-window-minimize"></i>
+                    </button>
+                    <button
+                        className="window-header-button"
+                        onClick={() => (onClose ? onClose() : setIsCorpusBuilderOpen(false))}
+                        title="Lukk"
+                    >
+                        <i className="fas fa-times"></i>
                     </button>
                 </div>
             </div>

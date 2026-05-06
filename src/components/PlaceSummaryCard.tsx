@@ -451,6 +451,7 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
             position={{ x: layout.x, y: layout.y }}
             minWidth={320}
             minHeight={320}
+            cancel=".summary-close-button"
             dragHandleClassName="summary-header"
             className="place-summary-rnd"
             style={{ zIndex: activeWindow === 'summary' ? 2600 : 2000 }}
@@ -466,7 +467,15 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
         >
             <div className="summary-header" onMouseDown={() => setActiveWindow('summary')}>
                 <h3><i className="fas fa-map-marker-alt" style={{color: '#dc2626'}}></i> {token}</h3>
-                <button onClick={onClose}><i className="fas fa-times"></i></button>
+                <button
+                    type="button"
+                    className="summary-close-button"
+                    onClick={onClose}
+                    aria-label="Lukk stedsinfo"
+                    title="Lukk"
+                >
+                    <i className="fas fa-times"></i>
+                </button>
             </div>
             
             <div className="summary-body">

@@ -11,6 +11,8 @@ interface EntityInspectorPanelProps {
   initialTab?: 'list' | 'images';
   windowKey?: 'entityAuthorsList' | 'entityAuthorsImages' | 'entityPlacesList' | 'entityPlacesImages';
   defaultPosition?: { x: number; y: number };
+  isMinimized?: boolean;
+  onMinimize?: () => void;
   onClose: () => void;
   onSelectPlace: (place: { token: string; placeId?: string }) => void;
 }
@@ -70,6 +72,8 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
   initialTab = 'list',
   windowKey = 'entityPlacesList',
   defaultPosition,
+  isMinimized = false,
+  onMinimize,
   onClose,
   onSelectPlace
 }) => {
@@ -405,7 +409,7 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
     };
   }, [mode, imageLookupKey]);
 
-  if (!mode) return null;
+  if (!mode || isMinimized) return null;
 
   const title = mode === 'authors' ? 'Forfattere' : 'Steder';
 
@@ -430,9 +434,26 @@ export const EntityInspectorPanel: React.FC<EntityInspectorPanelProps> = ({
           <i className={mode === 'authors' ? 'fas fa-user-edit' : 'fas fa-map-marker-alt'}></i>
           {title}
         </h3>
-        <button onClick={onClose} aria-label="Lukk panel">
-          <i className="fas fa-times"></i>
-        </button>
+        <div className="window-header-controls no-drag">
+          <button
+            className="window-header-button"
+            type="button"
+            onClick={() => onMinimize?.()}
+            aria-label="Minimer panel"
+            title="Minimer"
+          >
+            <i className="fas fa-window-minimize"></i>
+          </button>
+          <button
+            className="window-header-button"
+            type="button"
+            onClick={onClose}
+            aria-label="Lukk panel"
+            title="Lukk"
+          >
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
       </div>
 
       {mode === 'authors' && activeTab === 'list' ? (

@@ -9,12 +9,19 @@ import './TemporalCard.css';
 
 interface TemporalCardProps {
   isOpen: boolean;
+  isMinimized?: boolean;
+  onMinimize?: () => void;
   onClose: () => void;
 }
 
 const normalizeTemporalPlaceId = (placeId: string): string => placeId.trim().toLowerCase();
 
-export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) => {
+export const TemporalCard: React.FC<TemporalCardProps> = ({
+  isOpen,
+  isMinimized = false,
+  onMinimize,
+  onClose
+}) => {
   const {
     activeBooksMetadata,
     temporalEnabled,
@@ -161,7 +168,7 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
     };
   }, [cumulativeSeries, minYear, maxYear, effectiveYear]);
 
-  if (!isOpen) return null;
+  if (!isOpen || isMinimized) return null;
 
   return (
     <Rnd
@@ -183,9 +190,12 @@ export const TemporalCard: React.FC<TemporalCardProps> = ({ isOpen, onClose }) =
         <div className="temporal-title">
           <i className="fas fa-calendar-alt"></i> Tidsvisning
         </div>
-        <div className="temporal-controls no-drag">
-          <button onClick={onClose} title="Minimer til chip">
+        <div className="temporal-controls no-drag window-header-controls">
+          <button className="window-header-button" onClick={() => (onMinimize ? onMinimize() : onClose())} title="Minimer">
             <i className="fas fa-window-minimize"></i>
+          </button>
+          <button className="window-header-button" onClick={onClose} title="Lukk">
+            <i className="fas fa-times"></i>
           </button>
         </div>
       </div>

@@ -8,10 +8,18 @@ import './CorpusBrowseTable.css';
 type SortKey = keyof BookMetadata;
 
 interface CorpusBrowseTableProps {
+    isMinimized?: boolean;
+    onMinimize?: () => void;
+    onClose?: () => void;
     onShowBookSequence?: (bookId: number) => void;
 }
 
-export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBookSequence }) => {
+export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({
+    isMinimized = false,
+    onMinimize,
+    onClose,
+    onShowBookSequence
+}) => {
     const {
         activeBooksMetadata,
         isBrowseTableOpen,
@@ -107,7 +115,7 @@ export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBook
         [visibleBooks, bookSegmentAssignments]
     );
 
-    if (!isBrowseTableOpen) return null;
+    if (!isBrowseTableOpen || isMinimized) return null;
 
     const renderHeader = (label: string, key: SortKey) => (
         <th onClick={() => handleSort(key)} className="sortable-header">
@@ -136,11 +144,22 @@ export const CorpusBrowseTable: React.FC<CorpusBrowseTableProps> = ({ onShowBook
                     <div className="table-title">
                         <i className="fas fa-list"></i> Aktivt Korpus ({activeBooksMetadata.length} bøker)
                     </div>
-                    <div className="table-controls no-drag">
+                    <div className="table-controls no-drag window-header-controls">
                         <button onClick={handleDownload} title="Last ned korpusliste (CSV)">
                             <i className="fas fa-download"></i>
                         </button>
-                        <button onClick={() => setIsBrowseTableOpen(false)}>
+                        <button
+                            className="window-header-button"
+                            onClick={() => (onMinimize ? onMinimize() : setIsBrowseTableOpen(false))}
+                            title="Minimer"
+                        >
+                            <i className="fas fa-window-minimize"></i>
+                        </button>
+                        <button
+                            className="window-header-button"
+                            onClick={() => (onClose ? onClose() : setIsBrowseTableOpen(false))}
+                            title="Lukk"
+                        >
                             <i className="fas fa-times"></i>
                         </button>
                     </div>

@@ -12,6 +12,7 @@ import { Omnibox } from './components/Omnibox'
 import { VisualsCard } from './components/VisualsCard'
 import { SegmentViewCard } from './components/SegmentViewCard'
 import { PlaceStatsCard } from './components/PlaceStatsCard'
+import { MinimizedWindowsRail, type MinimizedWindowItem } from './components/MinimizedWindowsRail'
 import { VisualsLauncherChip } from './components/VisualsLauncherChip'
 import { SettingsLauncherChip } from './components/SettingsLauncherChip'
 import { SettingsCard } from './components/SettingsCard'
@@ -30,6 +31,17 @@ interface SelectedPlace {
   lat?: number | null;
   lon?: number | null;
 }
+
+type MinimizableWindowKey =
+  | 'builder'
+  | 'browse'
+  | 'entityAuthorsList'
+  | 'entityAuthorsImages'
+  | 'entityPlacesList'
+  | 'entityPlacesImages'
+  | 'temporal'
+  | 'geoConcordance'
+  | 'bookSequence';
 
 function App() {
   const {
@@ -69,20 +81,65 @@ function App() {
   const [isPlaceStatsOpen, setIsPlaceStatsOpen] = useState(false);
   const [isPlaceQaOpen, setIsPlaceQaOpen] = useState(false);
   const [isSegmentViewOpen, setIsSegmentViewOpen] = useState(false);
+  const [minimizedWindows, setMinimizedWindows] = useState<Partial<Record<MinimizableWindowKey, boolean>>>({});
+
+  const isMinimized = (windowKey: MinimizableWindowKey) => Boolean(minimizedWindows[windowKey]);
+  const restoreWindow = (windowKey: MinimizableWindowKey) => {
+    setMinimizedWindows((prev) => ({ ...prev, [windowKey]: false }));
+    setActiveWindow(windowKey);
+  };
+  const minimizeWindow = (windowKey: MinimizableWindowKey) => {
+    setMinimizedWindows((prev) => ({ ...prev, [windowKey]: true }));
+    if (activeWindow === windowKey) setActiveWindow(null);
+  };
+  const clearMinimizedWindow = (windowKey: MinimizableWindowKey) => {
+    setMinimizedWindows((prev) => ({ ...prev, [windowKey]: false }));
+  };
 
   const openBookSequenceForBook = (bookId: number) => {
     setSequenceBookId(bookId);
     setIsBookSequenceOpen(true);
-    setActiveWindow('bookSequence');
+    restoreWindow('bookSequence');
   };
 
   const exitBookSequenceMode = () => {
+    clearMinimizedWindow('bookSequence');
     setIsBookSequenceOpen(false);
     setSequenceRows([]);
     setSequenceBookId(null);
     setSequenceProgressPct(0);
     if (activeWindow === 'bookSequence') setActiveWindow(null);
   };
+
+  const minimizedWindowItems: MinimizedWindowItem[] = [
+    isCorpusBuilderOpen && isMinimized('builder')
+      ? { id: 'builder', label: 'Corpus Builder', iconClassName: 'fas fa-tools', onRestore: () => restoreWindow('builder') }
+      : null,
+    isBrowseTableOpen && isMinimized('browse')
+      ? { id: 'browse', label: 'Bøker', iconClassName: 'fas fa-list', onRestore: () => restoreWindow('browse') }
+      : null,
+    isAuthorsListOpen && isMinimized('entityAuthorsList')
+      ? { id: 'entityAuthorsList', label: 'Forfattere (liste)', iconClassName: 'fas fa-user-edit', onRestore: () => restoreWindow('entityAuthorsList') }
+      : null,
+    isAuthorsImagesOpen && isMinimized('entityAuthorsImages')
+      ? { id: 'entityAuthorsImages', label: 'Forfattere (bilder)', iconClassName: 'fas fa-user-edit', onRestore: () => restoreWindow('entityAuthorsImages') }
+      : null,
+    isPlacesListOpen && isMinimized('entityPlacesList')
+      ? { id: 'entityPlacesList', label: 'Steder (liste)', iconClassName: 'fas fa-map-marker-alt', onRestore: () => restoreWindow('entityPlacesList') }
+      : null,
+    isPlacesImagesOpen && isMinimized('entityPlacesImages')
+      ? { id: 'entityPlacesImages', label: 'Steder (bilder)', iconClassName: 'fas fa-map-marker-alt', onRestore: () => restoreWindow('entityPlacesImages') }
+      : null,
+    isTemporalOpen && isMinimized('temporal')
+      ? { id: 'temporal', label: 'Tidsvisning', iconClassName: 'fas fa-calendar-alt', onRestore: () => restoreWindow('temporal') }
+      : null,
+    isGeoConcordanceOpen && isMinimized('geoConcordance')
+      ? { id: 'geoConcordance', label: 'Geo-konkordans', iconClassName: 'fas fa-stream', onRestore: () => restoreWindow('geoConcordance') }
+      : null,
+    isBookSequenceOpen && isMinimized('bookSequence')
+      ? { id: 'bookSequence', label: 'Bokforløp', iconClassName: 'fas fa-route', onRestore: () => restoreWindow('bookSequence') }
+      : null
+  ].filter((item): item is MinimizedWindowItem => item !== null);
 
   return (
     <div className="app-shell">
@@ -189,90 +246,107 @@ function App() {
           window.open(`https://github.com/Yoonsen/imagination-frontend/issues/new?title=${title}&body=${body}`, '_blank', 'noopener,noreferrer');
         }}
       />
+      <MinimizedWindowsRail items={minimizedWindowItems} />
       <StatsHUD
         onBooksCorpusBuilderClick={() => {
-          if (isCorpusBuilderOpen && activeWindow === 'builder') {
+          if (isCorpusBuilderOpen && !isMinimized('builder') && activeWindow === 'builder') {
+            clearMinimizedWindow('builder');
             setIsCorpusBuilderOpen(false);
             setActiveWindow(null);
           } else {
             setIsCorpusBuilderOpen(true);
-            setActiveWindow('builder');
+            restoreWindow('builder');
           }
         }}
         onBooksTableClick={() => {
-          if (isBrowseTableOpen && activeWindow === 'browse') {
+          if (isBrowseTableOpen && !isMinimized('browse') && activeWindow === 'browse') {
+            clearMinimizedWindow('browse');
             setIsBrowseTableOpen(false);
             setActiveWindow(null);
           } else {
             setIsBrowseTableOpen(true);
-            setActiveWindow('browse');
+            restoreWindow('browse');
           }
         }}
         onAuthorsListClick={() => {
-          if (isAuthorsListOpen && activeWindow === 'entityAuthorsList') {
+          if (isAuthorsListOpen && !isMinimized('entityAuthorsList') && activeWindow === 'entityAuthorsList') {
+            clearMinimizedWindow('entityAuthorsList');
             setIsAuthorsListOpen(false);
             setActiveWindow(null);
           } else {
             setIsAuthorsListOpen(true);
-            setActiveWindow('entityAuthorsList');
+            restoreWindow('entityAuthorsList');
           }
         }}
         onAuthorsImagesClick={() => {
-          if (isAuthorsImagesOpen && activeWindow === 'entityAuthorsImages') {
+          if (isAuthorsImagesOpen && !isMinimized('entityAuthorsImages') && activeWindow === 'entityAuthorsImages') {
+            clearMinimizedWindow('entityAuthorsImages');
             setIsAuthorsImagesOpen(false);
             setActiveWindow(null);
           } else {
             setIsAuthorsImagesOpen(true);
-            setActiveWindow('entityAuthorsImages');
+            restoreWindow('entityAuthorsImages');
           }
         }}
         onPlacesListClick={() => {
-          if (isPlacesListOpen && activeWindow === 'entityPlacesList') {
+          if (isPlacesListOpen && !isMinimized('entityPlacesList') && activeWindow === 'entityPlacesList') {
+            clearMinimizedWindow('entityPlacesList');
             setIsPlacesListOpen(false);
             setActiveWindow(null);
           } else {
             setIsPlacesListOpen(true);
-            setActiveWindow('entityPlacesList');
+            restoreWindow('entityPlacesList');
           }
         }}
         onPlacesImagesClick={() => {
-          if (isPlacesImagesOpen && activeWindow === 'entityPlacesImages') {
+          if (isPlacesImagesOpen && !isMinimized('entityPlacesImages') && activeWindow === 'entityPlacesImages') {
+            clearMinimizedWindow('entityPlacesImages');
             setIsPlacesImagesOpen(false);
             setActiveWindow(null);
           } else {
             setIsPlacesImagesOpen(true);
-            setActiveWindow('entityPlacesImages');
+            restoreWindow('entityPlacesImages');
           }
         }}
         onPlacesGeoConcordanceClick={() => {
-          if (isGeoConcordanceOpen && activeWindow === 'geoConcordance') {
+          if (isGeoConcordanceOpen && !isMinimized('geoConcordance') && activeWindow === 'geoConcordance') {
+            clearMinimizedWindow('geoConcordance');
             setIsGeoConcordanceOpen(false);
             setActiveWindow(null);
           } else {
             setIsGeoConcordanceOpen(true);
-            setActiveWindow('geoConcordance');
+            restoreWindow('geoConcordance');
           }
         }}
         onPlacesBookSequenceClick={() => {
-          if (isBookSequenceOpen && activeWindow === 'bookSequence') {
+          if (isBookSequenceOpen && !isMinimized('bookSequence') && activeWindow === 'bookSequence') {
             exitBookSequenceMode();
           } else {
             setIsBookSequenceOpen(true);
-            setActiveWindow('bookSequence');
+            restoreWindow('bookSequence');
           }
         }}
         onYearClick={() => {
-          if (isTemporalOpen && activeWindow === 'temporal') {
+          if (isTemporalOpen && !isMinimized('temporal') && activeWindow === 'temporal') {
+            clearMinimizedWindow('temporal');
             setIsTemporalOpen(false);
             setActiveWindow(null);
           } else {
             setIsTemporalOpen(true);
-            setActiveWindow('temporal');
+            restoreWindow('temporal');
           }
         }}
       />
       <div className="workspace-zone">
-        <CorpusBuilderCard />
+        <CorpusBuilderCard
+          isMinimized={isMinimized('builder')}
+          onMinimize={() => minimizeWindow('builder')}
+          onClose={() => {
+            clearMinimizedWindow('builder');
+            setIsCorpusBuilderOpen(false);
+            if (activeWindow === 'builder') setActiveWindow(null);
+          }}
+        />
         <VisualsCard />
         <SegmentViewCard
           isOpen={isSegmentViewOpen}
@@ -298,7 +372,10 @@ function App() {
         />
         <GeoConcordanceCard
           isOpen={isGeoConcordanceOpen}
+          isMinimized={isMinimized('geoConcordance')}
+          onMinimize={() => minimizeWindow('geoConcordance')}
           onClose={() => {
+            clearMinimizedWindow('geoConcordance');
             setIsGeoConcordanceOpen(false);
             if (activeWindow === 'geoConcordance') setActiveWindow(null);
           }}
@@ -313,6 +390,8 @@ function App() {
         />
         <BookSequenceCard
           isOpen={isBookSequenceOpen}
+          isMinimized={isMinimized('bookSequence')}
+          onMinimize={() => minimizeWindow('bookSequence')}
           onClose={exitBookSequenceMode}
           onExitMode={exitBookSequenceMode}
           selectedBookId={sequenceBookId}
@@ -335,19 +414,34 @@ function App() {
         />
         <TemporalCard
           isOpen={isTemporalOpen}
+          isMinimized={isMinimized('temporal')}
+          onMinimize={() => minimizeWindow('temporal')}
           onClose={() => {
+            clearMinimizedWindow('temporal');
             setIsTemporalOpen(false);
             if (activeWindow === 'temporal') setActiveWindow(null);
           }}
         />
-        <CorpusBrowseTable onShowBookSequence={openBookSequenceForBook} />
+        <CorpusBrowseTable
+          isMinimized={isMinimized('browse')}
+          onMinimize={() => minimizeWindow('browse')}
+          onClose={() => {
+            clearMinimizedWindow('browse');
+            setIsBrowseTableOpen(false);
+            if (activeWindow === 'browse') setActiveWindow(null);
+          }}
+          onShowBookSequence={openBookSequenceForBook}
+        />
         {isAuthorsListOpen && (
           <EntityInspectorPanel
             mode="authors"
             windowKey="entityAuthorsList"
             defaultPosition={{ x: 80, y: 24 }}
             initialTab="list"
+            isMinimized={isMinimized('entityAuthorsList')}
+            onMinimize={() => minimizeWindow('entityAuthorsList')}
             onClose={() => {
+              clearMinimizedWindow('entityAuthorsList');
               setIsAuthorsListOpen(false);
               if (activeWindow === 'entityAuthorsList') setActiveWindow(null);
             }}
@@ -363,7 +457,10 @@ function App() {
             windowKey="entityAuthorsImages"
             defaultPosition={{ x: 140, y: 70 }}
             initialTab="images"
+            isMinimized={isMinimized('entityAuthorsImages')}
+            onMinimize={() => minimizeWindow('entityAuthorsImages')}
             onClose={() => {
+              clearMinimizedWindow('entityAuthorsImages');
               setIsAuthorsImagesOpen(false);
               if (activeWindow === 'entityAuthorsImages') setActiveWindow(null);
             }}
@@ -379,7 +476,10 @@ function App() {
             windowKey="entityPlacesList"
             defaultPosition={{ x: 180, y: 90 }}
             initialTab="list"
+            isMinimized={isMinimized('entityPlacesList')}
+            onMinimize={() => minimizeWindow('entityPlacesList')}
             onClose={() => {
+              clearMinimizedWindow('entityPlacesList');
               setIsPlacesListOpen(false);
               if (activeWindow === 'entityPlacesList') setActiveWindow(null);
             }}
@@ -395,7 +495,10 @@ function App() {
             windowKey="entityPlacesImages"
             defaultPosition={{ x: 240, y: 140 }}
             initialTab="images"
+            isMinimized={isMinimized('entityPlacesImages')}
+            onMinimize={() => minimizeWindow('entityPlacesImages')}
             onClose={() => {
+              clearMinimizedWindow('entityPlacesImages');
               setIsPlacesImagesOpen(false);
               if (activeWindow === 'entityPlacesImages') setActiveWindow(null);
             }}
