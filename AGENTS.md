@@ -16,6 +16,16 @@ Dette er første stopp for agenter som jobber i dette repoet.
 - Ett panel skal normalt ha én oppgave. Bevar egne paneler som `PlaceStatsCard` og `PlaceQaCard`.
 - Place kind-filter skal kunne stå på til det slås av eksplisitt.
 - Geo-konkordans skal ikke sende `Nærhet` over `25`.
+- I Visuals kjøres frekvensfiltrene i fast rekkefølge: `Kutt lavfrekvente steder`
+  fjerner nederste X prosent, deretter grønner `Grønning etter kutt` nederste Y
+  prosent av stedene som gjenstår. Ikke gjeninnfør den gamle dempekontrollen.
+- Geo-konkordans- og bokforløpsfarger skal overstyre grønnfargen.
+- Bildeeksport er avhengig av Leaflet canvas-rendering (`preferCanvas`) og av å
+  vente til panorering/zoom er ferdig. Ikke regress til SVG-markører eller
+  øyeblikkelig `html2canvas`, som kan forskyve steder i eksporten.
+- Full CSV følger aktivt korpus samt stedstype- og tidsfilter. CSV for synlig
+  kartutsnitt følger i tillegg viewport, frekvenskutt, markørgrense,
+  geo-konkordans og bokforløp. CSV er foreløpig eksport-only.
 
 ## Start i kode
 
@@ -25,8 +35,11 @@ Les disse filene tidlig:
 - `src/App.tsx`
 - `src/components/MapMarkers.tsx`
 - `src/components/HeatmapLayer.tsx`
+- `src/components/VisualsCard.tsx`
 - `src/components/TemporalCard.tsx`
 - `src/utils/temporal.ts`
+- `src/utils/placeFrequency.ts`
+- `src/utils/placeCsvExport.ts`
 
 ## Mer detaljert onboarding
 
