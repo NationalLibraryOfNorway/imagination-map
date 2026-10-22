@@ -15,11 +15,16 @@ Dette er første stopp for agenter som jobber i dette repoet.
 - Ikke bruk `or_query` eller fulltekst/near-logikk for temporal førstegangskartlegging.
 - Ett panel skal normalt ha én oppgave. Bevar egne paneler som `PlaceStatsCard` og `PlaceQaCard`.
 - Place kind-filter skal kunne stå på til det slås av eksplisitt.
-- Geo-konkordans skal ikke sende `Nærhet` over `25`.
+- Geo-konkordans skal ikke sende `Nærhet` over `50`. Verdier over 25 forutsetter
+  at backendens render-søk støtter den annonserte OpenAPI-grensen.
+- Trunkerte geo-konkordansesøk har justerbar `maxVariants` (10, 25, 50 eller
+  100), med 50 som standard. Utvidelsen skjer mot frekvenssorterte unigrammer.
 - I Visuals kjøres frekvensfiltrene i fast rekkefølge: `Kutt lavfrekvente steder`
   fjerner nederste X prosent, deretter grønner `Grønning etter kutt` nederste Y
   prosent av stedene som gjenstår. Ikke gjeninnfør den gamle dempekontrollen.
-- Geo-konkordans- og bokforløpsfarger skal overstyre grønnfargen.
+- Når geo-konkordansetreff vises sammen med korpuset, skal treffene ha cyan ring.
+  Når bare treffstedene vises, skal de bruke vanlige markørfarger. Bokforløpsfarger
+  skal alltid overstyre grønnfargen.
 - Bildeeksport er avhengig av Leaflet canvas-rendering (`preferCanvas`) og av å
   vente til panorering/zoom er ferdig. Ikke regress til SVG-markører eller
   øyeblikkelig `html2canvas`, som kan forskyve steder i eksporten.

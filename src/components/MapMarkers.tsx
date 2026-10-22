@@ -23,7 +23,7 @@ interface MapMarkersProps {
     geoFocus?: {
         placeIds: string[];
         dimOthers: boolean;
-        style: 'fill' | 'ring';
+        style: 'normal' | 'ring';
     };
 }
 
@@ -492,33 +492,35 @@ export const MapMarkers: React.FC<MapMarkersProps> = ({
             const shouldDimBySequence = hasSequence && bookSequence?.dimOthers && !inBookSequence;
             const shouldDimByGeo = hasGeoFocus && geoFocus?.dimOthers && !inGeoFocus && !inBookSequence;
             const shouldDimByFocus = shouldDimBySequence || shouldDimByGeo;
-            const isAnyFocused = inBookSequence || inGeoFocus;
+            const useNormalGeoMarker = inGeoFocus && geoFocus?.style === 'normal';
+            const useGeoRing = inGeoFocus && geoFocus?.style === 'ring';
+            const isAnyFocused = inBookSequence || (inGeoFocus && !useNormalGeoMarker);
             const displayRadius = inBookSequence
                 ? Math.max(3.5, radius * 1.18)
-                : inGeoFocus
+                : inGeoFocus && !useNormalGeoMarker
                     ? Math.max(3.2, radius * 1.12)
                     : radius;
             const geoStroke = '#0ea5e9';
-            const geoFill = '#38bdf8';
-            const useGeoRing = inGeoFocus && geoFocus?.style === 'ring';
             const displayStroke = inBookSequence
                 ? '#ca8a04'
-                : inGeoFocus
+                : inGeoFocus && !useNormalGeoMarker
                     ? geoStroke
                     : temporalStroke;
             const displayFill = inBookSequence
                 ? '#eab308'
-                : inGeoFocus && !useGeoRing
-                    ? geoFill
-                    : temporalFill;
-            const baseFocusOpacity = inBookSequence ? 0.86 : (inGeoFocus ? 0.92 : temporalOpacity);
+                : temporalFill;
+            const baseFocusOpacity = inBookSequence
+                ? 0.86
+                : inGeoFocus && !useNormalGeoMarker
+                    ? 0.92
+                    : temporalOpacity;
             const displayOpacity = shouldDimByFocus ? 0.06 : baseFocusOpacity;
             const displayWeight = shouldDimByFocus
                 ? 0
                 : inBookSequence
                     ? 2.2
-                    : inGeoFocus
-                        ? (useGeoRing ? 2.8 : 2.1)
+                    : inGeoFocus && !useNormalGeoMarker
+                        ? 2.8
                         : 1.5;
 
             return (

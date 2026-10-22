@@ -10,7 +10,7 @@ interface GeoConcordanceCardProps {
   isMinimized?: boolean;
   onMinimize?: () => void;
   onClose: () => void;
-  onApplyMapFocus: (payload: { placeIds: string[]; dimOthers: boolean; style: 'fill' | 'ring' }) => void;
+  onApplyMapFocus: (payload: { placeIds: string[]; dimOthers: boolean; style: 'normal' | 'ring' }) => void;
   onClearMapFocus: () => void;
   mapFocusAppliedCount: number;
 }
@@ -66,10 +66,21 @@ interface NearQueryResult {
 
 const MAX_GROUPS = 120;
 const MAX_ROWS_PER_GROUP = 140;
-const MAX_PROXIMITY = 25;
+const MAX_PROXIMITY = 50;
+const MAX_WILDCARD_VARIANTS = 100;
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildSearchTermRegExp(value: string, flags = 'giu'): RegExp | null {
+  const term = value.trim();
+  if (!term) return null;
+  const isPrefixSearch = term.endsWith('*');
+  const literal = isPrefixSearch ? term.slice(0, -1) : term;
+  if (!literal) return null;
+  const suffix = isPrefixSearch ? '[\\p{L}\\p{M}\\p{N}_-]*' : '';
+  return new RegExp(`${escapeRegExp(literal)}${suffix}`, flags);
 }
 
 function extractPlaceFromFrag(fragment: string): string | null {
@@ -146,6 +157,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
   const [query, setQuery] = useState('');
   const [proximity, setProximity] = useState(8);
   const [perBookLimit, setPerBookLimit] = useState(10);
+  const [wildcardVariants, setWildcardVariants] = useState(50);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastElapsedMs, setLastElapsedMs] = useState<number | null>(null);
@@ -320,6 +332,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
           schema: 'unigrams',
           symmetric: true,
           excludeSelf: false,
+          maxVariants: wildcardVariants,
           window: effectiveProximity,
           before: effectiveProximity,
           after: effectiveProximity
@@ -388,7 +401,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     const mainTermGroups = queryTerms.length > 0
       ? [['#geo'], queryTerms]
       : [['#geo']];
-    const currentSignature = `${activeDhlabids.join(',')}::${query.trim().toLowerCase()}`;
+    const currentSignature = `${activeDhlabids.join(',')}::${query.trim().toLowerCase()}::${perBookLimit}::${wildcardVariants}`;
     const previousRows = rows;
     const previousRendered = rendered;
     const result = await runNearQuery(mainTermGroups, 'render');
@@ -425,8 +438,8 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
         : nextRows.map((r: any) => String(r?.frag || ''))
       ).join('\n');
       const statuses: QueryGroupStatus[] = queryTerms.map((term) => {
-        const re = new RegExp(escapeRegExp(term), 'gi');
-        const matches = pool.match(re);
+        const re = buildSearchTermRegExp(term);
+        const matches = re ? pool.match(re) : null;
         const rowCount = matches ? matches.length : 0;
         return {
           group: term,
@@ -495,7 +508,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
     onApplyMapFocus({
       placeIds: nextPlaceIds,
       dimOthers: nextDimOthers,
-      style: 'ring'
+      style: nextDimOthers ? 'normal' : 'ring'
     });
   };
 
@@ -556,6 +569,9 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
                 <option value={15}>15</option>
                 <option value={20}>20</option>
                 <option value={25}>25</option>
+                <option value={30}>30</option>
+                <option value={40}>40</option>
+                <option value={50}>50</option>
               </select>
             </label>
             <label className="geo-conc-proximity">
@@ -572,6 +588,24 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
                 <option value={8}>8</option>
                 <option value={10}>10</option>
                 <option value={15}>15</option>
+              </select>
+            </label>
+            <label
+              className="geo-conc-proximity"
+              title="Maksimalt antall frekvenssorterte unigram-varianter som utvides for hvert trunkerte søkeord"
+            >
+              <span>Trunkering</span>
+              <select
+                value={wildcardVariants}
+                onChange={(e) => setWildcardVariants(
+                  Math.min(MAX_WILDCARD_VARIANTS, Math.max(1, Number(e.target.value) || 50))
+                )}
+                disabled={isLoading || !query.includes('*')}
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
               </select>
             </label>
             <button type="button" onClick={runQuery} disabled={isLoading || activeDhlabids.length === 0 || !query.trim()}>
@@ -627,7 +661,7 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
                   }
                 }}
               />
-              Demp resten
+              Vis bare treffsteder
             </label>
             {mapFocusAppliedCount > 0 && (
               <span className="geo-conc-map-applied">
@@ -694,8 +728,9 @@ export const GeoConcordanceCard: React.FC<GeoConcordanceCardProps> = ({
                       const hoverTitle = buildSnippetTooltip(row, placeSurface);
                       const withTerm = highlightTerms.length > 0
                         ? highlightTerms.reduce((acc, token) => {
-                            if (!token) return acc;
-                            return acc.replace(new RegExp(escapeRegExp(token), 'gi'), (m) => `<mark class="geo-term-mark">${m}</mark>`);
+                            const re = buildSearchTermRegExp(token);
+                            if (!re) return acc;
+                            return acc.replace(re, (m) => `<mark class="geo-term-mark">${m}</mark>`);
                           }, fragment)
                         : fragment;
                       const html = highlightGeoBracket(withTerm);

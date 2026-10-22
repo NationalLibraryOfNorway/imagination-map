@@ -48,7 +48,10 @@ Disse er bevisste beslutninger og bør ikke "forenkles bort" uten å sjekke med 
 - Omnibox skal kunne finne steder i hele korpuset via backend, ikke bare steder i aktivt utsnitt.
 - Valgt sted skal highlightes på kartet, og highlight skal forsvinne når place summary lukkes.
 - Stedsliste har et spurious-filter basert på `mentions / doc_count`, og terskelen styres i settings.
-- Geo-konkordans har maks `Nærhet = 25` fordi backend validerer dette.
+- Geo-konkordans har maks `Nærhet = 50`. Verdier over 25 forutsetter at
+  backendens render-søk støtter den annonserte OpenAPI-grensen.
+- Trunkering i geo-konkordans kan justeres til 10, 25, 50 eller 100
+  frekvenssorterte unigram-varianter; standard er 50.
 
 ## Tidsvisning: viktigste regel
 
