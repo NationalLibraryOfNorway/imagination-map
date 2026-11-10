@@ -78,6 +78,7 @@ interface CorpusContextType {
   places: PlacePoint[];
   totalPlaces: number;
   isPlacesLoading: boolean;
+  placesError: string | null;
   mapVisualMode: 'map' | 'heatmap' | 'heatmap-all';
   setMapVisualMode: (mode: 'map' | 'heatmap' | 'heatmap-all') => void;
   mapLabelLanguage: MapLabelLanguage;
@@ -133,6 +134,7 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [places, setPlaces] = useState<PlacePoint[]>([]);
   const [totalPlaces, setTotalPlaces] = useState<number>(0);
   const [isPlacesLoading, setIsPlacesLoading] = useState(false);
+  const [placesError, setPlacesError] = useState<string | null>(null);
   const [mapVisualMode, setMapVisualMode] = useState<'map' | 'heatmap' | 'heatmap-all'>('map');
   const [mapLabelLanguage, setMapLabelLanguage] = useState<MapLabelLanguage>('no');
   const [mapLabelMode, setMapLabelMode] = useState<MapLabelMode>('countries');
@@ -295,15 +297,22 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     if (activeDhlabids.length === 0) {
       setPlaces([]);
       setTotalPlaces(0);
+      setPlacesError(null);
       return;
     }
     setIsPlacesLoading(true);
+    setPlacesError(null);
     fetch(`${API_URL}/api/places`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dhlabids: activeDhlabids, maxPlaces: maxPlacesInView })
-    }).then(res => {
-      if (!res.ok) throw new Error("Failed to fetch places");
+    }).then(async res => {
+      if (!res.ok) {
+        const detail = await res.json()
+          .then(body => (typeof body?.detail === 'string' ? body.detail : ''))
+          .catch(() => '');
+        throw new Error(`Kunne ikke hente steder (HTTP ${res.status})${detail ? `: ${detail}` : ''}`);
+      }
       return res.json();
     })
       .then(data => { 
@@ -315,7 +324,13 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
           );
           setIsPlacesLoading(false); 
       })
-      .catch(err => { console.error(err); setIsPlacesLoading(false); });
+      .catch(err => {
+        console.error(err);
+        setPlaces([]);
+        setTotalPlaces(0);
+        setPlacesError(err instanceof Error ? err.message : 'Kunne ikke hente steder');
+        setIsPlacesLoading(false);
+      });
   }, [activeDhlabids, API_URL, maxPlacesInView]);
 
   const activeBooksMetadata = useMemo(() => {
@@ -381,6 +396,7 @@ export const CorpusProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       places,
       totalPlaces,
       isPlacesLoading,
+      placesError,
       mapVisualMode,
       setMapVisualMode,
       mapLabelLanguage,

@@ -65,8 +65,13 @@ function App() {
     mapLabelMode,
     activeWindow,
     setActiveWindow,
-    selectedPlaceKindFilter
+    selectedPlaceKindFilter,
+    error: metadataError,
+    placesError
   } = useCorpus();
+  const dataLoadError = metadataError
+    ? `Kunne ikke hente bokmetadata: ${metadataError}`
+    : placesError;
   const [selectedPlace, setSelectedPlace] = useState<SelectedPlace | null>(null);
   const [isAuthorsListOpen, setIsAuthorsListOpen] = useState(false);
   const [isAuthorsImagesOpen, setIsAuthorsImagesOpen] = useState(false);
@@ -277,6 +282,11 @@ function App() {
         }}
       />
       <MinimizedWindowsRail items={minimizedWindowItems} />
+      {dataLoadError && (
+        <div className="data-load-error" role="alert">
+          {dataLoadError}
+        </div>
+      )}
       <StatsHUD
         onBooksCorpusBuilderClick={() => {
           if (isCorpusBuilderOpen && !isMinimized('builder') && activeWindow === 'builder') {

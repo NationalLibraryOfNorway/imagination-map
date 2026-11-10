@@ -102,3 +102,21 @@ body, html, #root {
     font-size: 1rem;
   }
 }
+
+.data-load-error {
+  position: absolute;
+  bottom: calc(var(--ui-gutter) * 2);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6000;
+  max-width: min(640px, calc(100vw - 2 * var(--ui-gutter)));
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(254, 242, 242, 0.95);
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  box-shadow: var(--glass-shadow);
+  color: #991b1b;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  pointer-events: auto;
+}
