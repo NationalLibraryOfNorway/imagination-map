@@ -1,4 +1,4 @@
-import type { PlacePoint } from '../context/CorpusContext';
+import type { PlacePoint, PlaceSurfaceForm } from '../context/CorpusContext';
 
 type PlaceRow = Record<string, unknown>;
 
@@ -9,6 +9,23 @@ const toNumber = (value: unknown): number | null => {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+};
+
+const toSurfaceForms = (value: unknown): PlaceSurfaceForm[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item): PlaceSurfaceForm | null => {
+      if (!item || typeof item !== 'object') return null;
+      const row = item as PlaceRow;
+      const surface = String(row.surface ?? row.surface_text ?? '').trim();
+      if (!surface) return null;
+      return {
+        surface,
+        mentions: toNumber(row.mentions ?? row.count) ?? 0,
+        docCount: toNumber(row.docCount ?? row.doc_count) ?? 0
+      };
+    })
+    .filter((item): item is PlaceSurfaceForm => item !== null);
 };
 
 const toPlacePoint = (value: unknown): PlacePoint | null => {
@@ -40,7 +57,8 @@ const toPlacePoint = (value: unknown): PlacePoint | null => {
     frequency,
     doc_count: docCount,
     featureCode: featureCodeRaw ? String(featureCodeRaw) : null,
-    kind: kindRaw ? String(kindRaw).trim().toLowerCase() : null
+    kind: kindRaw ? String(kindRaw).trim().toLowerCase() : null,
+    surfaceForms: toSurfaceForms(row.surfaceForms ?? row.surface_forms)
   };
 };
 

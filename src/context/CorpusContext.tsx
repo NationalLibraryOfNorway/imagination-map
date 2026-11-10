@@ -14,6 +14,12 @@ export interface BookMetadata {
   total_mentions?: number;
 }
 
+export interface PlaceSurfaceForm {
+    surface: string;
+    mentions: number;
+    docCount: number;
+}
+
 export interface PlacePoint {
     id: string;
     nbPlaceId?: number | null;
@@ -25,6 +31,8 @@ export interface PlacePoint {
     doc_count: number;
     featureCode?: string | null;
     kind?: string | null;
+    /** Surface forms linked to the place, counted across the whole collection. */
+    surfaceForms?: PlaceSurfaceForm[];
 }
 
 export interface CorpusSegment {

@@ -26,6 +26,20 @@ interface PlaceBookDetail {
     mentions: number;
 }
 
+interface CorpusSurfaceCount {
+    mentions: number;
+    books: number;
+}
+
+interface SurfaceFormRow {
+    surface: string;
+    corpusMentions: number;
+    corpusBooks: number;
+    collectionMentions: number | null;
+}
+
+const GEO_HIT_LIMIT = 5000;
+
 interface ConcordanceHit {
     bookId: number;
     pos: number;
@@ -112,6 +126,9 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
 }) => {
     const { activeDhlabids, activeBooksMetadata, API_URL, activeWindow, setActiveWindow, places } = useCorpus();
     const [books, setBooks] = useState<PlaceBookDetail[]>([]);
+    const [corpusSurfaceCounts, setCorpusSurfaceCounts] = useState<Map<string, CorpusSurfaceCount>>(new Map());
+    const [isGeoHitLimitReached, setIsGeoHitLimitReached] = useState(false);
+    const [isSurfaceFormsOpen, setIsSurfaceFormsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [collapsedBooks, setCollapsedBooks] = useState<Record<number, boolean>>({});
     const [bookConcordances, setBookConcordances] = useState<Record<number, ConcordanceHit[]>>({});
@@ -150,6 +167,32 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
         () => [...books].sort((a, b) => b.mentions - a.mentions),
         [books]
     );
+    const surfaceFormRows = useMemo<SurfaceFormRow[]>(() => {
+        const rows = new Map<string, SurfaceFormRow>();
+        corpusSurfaceCounts.forEach((count, surface) => {
+            rows.set(surface, {
+                surface,
+                corpusMentions: count.mentions,
+                corpusBooks: count.books,
+                collectionMentions: null
+            });
+        });
+        (selectedPlace?.surfaceForms ?? []).forEach((form) => {
+            const current = rows.get(form.surface);
+            rows.set(form.surface, {
+                surface: form.surface,
+                corpusMentions: current?.corpusMentions ?? 0,
+                corpusBooks: current?.corpusBooks ?? 0,
+                collectionMentions: form.mentions
+            });
+        });
+        return [...rows.values()].sort((a, b) =>
+            b.corpusMentions - a.corpusMentions
+            || (b.collectionMentions ?? 0) - (a.collectionMentions ?? 0)
+            || a.surface.localeCompare(b.surface, 'nb')
+        );
+    }, [corpusSurfaceCounts, selectedPlace]);
+    const corpusSurfaceFormCount = surfaceFormRows.filter((row) => row.corpusMentions > 0).length;
     const booksById = useMemo(() => {
         const map = new Map<number, PlaceBookDetail>();
         books.forEach((book) => map.set(book.dhlabid, book));
@@ -182,6 +225,8 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
     useEffect(() => {
         if (!token || activeDhlabids.length === 0) {
             setBooks([]);
+            setCorpusSurfaceCounts(new Map());
+            setIsGeoHitLimitReached(false);
             setBookConcordances({});
             setBookConcordanceLoading({});
             return;
@@ -189,6 +234,8 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
 
         setIsLoading(true);
         setBooks([]);
+        setCorpusSurfaceCounts(new Map());
+        setIsGeoHitLimitReached(false);
         setBookConcordances({});
         setBookConcordanceLoading({});
         setCollapsedBooks({});
@@ -206,7 +253,7 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
                                 terms: [geoTerm],
                                 useFilter: true,
                                 filterIds: activeDhlabids,
-                                totalLimit: 5000,
+                                totalLimit: GEO_HIT_LIMIT,
                                 before: 1,
                                 after: 1,
                                 renderHits: false,
@@ -218,11 +265,27 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
                         const rows = Array.isArray(data?.rows) ? data.rows : [];
                         if (rows.length === 0) continue;
                         const mentionsByBook = new Map<number, number>();
+                        const surfaceMentions = new Map<string, number>();
+                        const surfaceBooks = new Map<string, Set<number>>();
                         rows.forEach((row: any) => {
                             const bookId = Number(row?.bookId ?? row?.dhlabid);
                             if (!Number.isFinite(bookId)) return;
                             mentionsByBook.set(bookId, (mentionsByBook.get(bookId) || 0) + 1);
+                            const surface = String(row?.surfaceText ?? row?.place?.variantText ?? '').trim();
+                            if (!surface) return;
+                            surfaceMentions.set(surface, (surfaceMentions.get(surface) || 0) + 1);
+                            const booksForSurface = surfaceBooks.get(surface) ?? new Set<number>();
+                            booksForSurface.add(bookId);
+                            surfaceBooks.set(surface, booksForSurface);
                         });
+                        if (!cancelled) {
+                            const counts = new Map<string, CorpusSurfaceCount>();
+                            surfaceMentions.forEach((mentions, surface) => {
+                                counts.set(surface, { mentions, books: surfaceBooks.get(surface)?.size ?? 0 });
+                            });
+                            setCorpusSurfaceCounts(counts);
+                            setIsGeoHitLimitReached(rows.length >= GEO_HIT_LIMIT);
+                        }
                         const out: PlaceBookDetail[] = [];
                         mentionsByBook.forEach((mentions, dhlabid) => {
                             const meta = metadataById.get(dhlabid);
@@ -480,7 +543,18 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
             onMouseDown={() => setActiveWindow('summary')}
         >
             <div className="summary-header" onMouseDown={() => setActiveWindow('summary')}>
-                <h3><i className="fas fa-map-marker-alt" style={{color: '#dc2626'}}></i> {token}</h3>
+                <h3>
+                    <button
+                        type="button"
+                        className="summary-title-button"
+                        onClick={() => setIsSurfaceFormsOpen((prev) => !prev)}
+                        aria-expanded={isSurfaceFormsOpen}
+                        title="Vis overflateformer for stedet"
+                    >
+                        <i className="fas fa-map-marker-alt" style={{color: '#dc2626'}}></i> {token}
+                        <i className={`fas fa-chevron-${isSurfaceFormsOpen ? 'up' : 'down'} summary-title-caret`}></i>
+                    </button>
+                </h3>
                 <button
                     type="button"
                     className="summary-close-button"
@@ -506,7 +580,52 @@ export const PlaceSummaryCard: React.FC<PlaceSummaryCardProps> = ({
                                 Steds-ID:{' '}
                                 <strong>{effectivePlaceId || 'mangler i datasettet'}</strong>
                             </span>
+                            <button
+                                type="button"
+                                className="summary-surface-toggle"
+                                onClick={() => setIsSurfaceFormsOpen((prev) => !prev)}
+                                aria-expanded={isSurfaceFormsOpen}
+                                disabled={surfaceFormRows.length === 0}
+                            >
+                                Overflateformer: <strong>{activeDhlabids.length > 0 ? corpusSurfaceFormCount : surfaceFormRows.length}</strong>
+                                <i className={`fas fa-chevron-${isSurfaceFormsOpen ? 'up' : 'down'}`}></i>
+                            </button>
                         </div>
+                        {isSurfaceFormsOpen && (
+                            <div className="summary-surface-forms">
+                                {surfaceFormRows.length === 0 ? (
+                                    <div className="concordance-group-meta">
+                                        Ingen overflateformer registrert for dette stedet.
+                                    </div>
+                                ) : (
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Form</th>
+                                                <th title="Forekomster i aktivt korpus">I korpus</th>
+                                                <th title="Bøker i aktivt korpus med denne formen">Bøker</th>
+                                                <th title="Forekomster i hele samlingen">Hele samlingen</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {surfaceFormRows.map((row) => (
+                                                <tr key={row.surface} className={row.corpusMentions === 0 ? 'is-absent' : undefined}>
+                                                    <td>{row.surface}</td>
+                                                    <td>{row.corpusMentions.toLocaleString('nb-NO')}</td>
+                                                    <td>{row.corpusBooks.toLocaleString('nb-NO')}</td>
+                                                    <td>{row.collectionMentions === null ? '–' : row.collectionMentions.toLocaleString('nb-NO')}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                                {isGeoHitLimitReached && (
+                                    <div className="concordance-group-meta">
+                                        Korpustallene bygger på de første {GEO_HIT_LIMIT.toLocaleString('nb-NO')} treffene.
+                                    </div>
+                                )}
+                            </div>
+                        )}
                         {selectedPlace?.name && selectedPlace.name !== token && (
                             <div className="concordance-group-meta">
                                 Kanonisk navn: <strong>{selectedPlace.name}</strong>
